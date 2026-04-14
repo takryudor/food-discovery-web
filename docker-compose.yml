@@ -1,0 +1,33 @@
+services:
+  frontend:
+    image: node:20-alpine
+    working_dir: /workspace/frontend
+    command: sh -c "npm ci && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/workspace/frontend
+      - frontend_node_modules:/workspace/frontend/node_modules
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["db"]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-foodyssey}
+      POSTGRES_USER: ${POSTGRES_USER:-foodyssey}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foodyssey}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-foodyssey} -d ${POSTGRES_DB:-foodyssey}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  frontend_node_modules:
+  postgres_data:
