@@ -33,9 +33,11 @@ def _create_tables_for_dev() -> None:
 	Tiện cho DEV: tự tạo table nếu chưa có.
 
 	- Khi deploy thật (production), nên quản lý schema bằng Alembic migration.
-	- Giữ đoạn này giúp bạn chạy nhanh để tập trung làm logic search trước.
+	- Chỉ chạy khi app_env == "development" để tránh tạo schema ngoài Alembic
+	  trong các môi trường khác.
 	"""
-	Base.metadata.create_all(bind=engine)
+	if settings.app_env == "development":
+		Base.metadata.create_all(bind=engine)
 
 
 @app.get("/", tags=["root"])

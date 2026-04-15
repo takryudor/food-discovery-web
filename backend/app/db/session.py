@@ -13,7 +13,11 @@ settings = get_settings()
 def _create_engine() -> Engine:
 	# Dùng SQLAlchemy engine dạng *sync* (đơn giản, phù hợp cho đa số đồ án FastAPI).
 	# DATABASE_URL lấy từ file `.env` (tham khảo `backend/.env.example`).
-	return create_engine(settings.database_url, pool_pre_ping=True)
+	url = settings.database_url
+	kwargs: dict = {"pool_pre_ping": True}
+	if url.startswith("sqlite"):
+		kwargs["connect_args"] = {"check_same_thread": False}
+	return create_engine(url, **kwargs)
 
 
 engine = _create_engine()
