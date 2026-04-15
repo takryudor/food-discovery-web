@@ -10,7 +10,9 @@ class Settings(BaseSettings):
 	app_env: str = "development"
 	api_v1_prefix: str = "/api/v1"
 	cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
-
+	
+	database_url: str = "postgresql+psycopg://foodyssey:foodyssey@localhost:5432/foodyssey"
+	groq_api_key: str = ""
 	model_config = SettingsConfigDict(
 		env_file=str(Path(__file__).resolve().parents[3] / ".env"),
 		env_file_encoding="utf-8",
