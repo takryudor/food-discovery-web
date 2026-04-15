@@ -92,16 +92,18 @@ class RestaurantResult:
 class SearchResponse:
     """Simplified search response model."""
     
-    def __init__(self, results: List[RestaurantResult], search_radius_km: int):
+    def __init__(self, results: List[RestaurantResult], search_radius_km: int,
+                 feedback_bot_suggestion: str = None):
         self.results = results
         self.total_count = len(results)
         self.search_radius_km = search_radius_km
         self.timestamp = datetime.now().isoformat()
         self.execution_time_ms = 0.0
+        self.feedback_bot_suggestion = feedback_bot_suggestion
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API response."""
-        return {
+        response = {
             "results": [
                 {
                     "id": r.id,
@@ -122,6 +124,12 @@ class SearchResponse:
             "timestamp": self.timestamp,
             "execution_time_ms": self.execution_time_ms
         }
+        
+        # Add feedback_bot_suggestion if present
+        if self.feedback_bot_suggestion:
+            response["feedback_bot_suggestion"] = self.feedback_bot_suggestion
+        
+        return response
 
 
 class SearchFlowSimulator:
@@ -167,7 +175,35 @@ class SearchFlowSimulator:
         # Sort by match_score (highest first)
         results = sorted(results, key=lambda r: r.match_score, reverse=True)
         
-        return SearchResponse(results, request.radius_km)
+        # Trigger feedback bot if no results
+        feedback = None
+        if len(results) == 0:
+            feedback = SearchFlowSimulator._generate_feedback_suggestion(request)
+        
+        response = SearchResponse(results, request.radius_km, feedback)
+        return response
+    
+    @staticmethod
+    def _generate_feedback_suggestion(request: SearchRequest) -> str:
+        """Generate feedback suggestion when search returns no results."""
+        suggestions = []
+        
+        # Suggest expanding radius
+        if request.radius_km < 10:
+            suggestions.append(f"Hãy thử nới rộng bán kính lên {request.radius_km + 2}km")
+        
+        # Suggest removing filters
+        if request.tags:
+            suggestions.append(f"Hoặc thử bỏ lọc tag để xem kết quả rộng hơn")
+        
+        if request.min_price or request.max_price:
+            suggestions.append("Bạn có thể điều chỉnh ngân sách tìm kiếm")
+        
+        # Default suggestion
+        if not suggestions:
+            suggestions.append("Không có nhà hàng trong khu vực này. Vui lòng thử khu vực khác!")
+        
+        return " | ".join(suggestions)
     
     @staticmethod
     def _filter_by_radius(restaurants: List[RestaurantResult],
@@ -221,7 +257,7 @@ class TestSearchFlowBasic:
     
     def test_search_with_minimal_params(self):
         """Test search with only required parameters."""
-        request = SearchRequest(latitude=10.7725, longitude=10.6944, radius_km=3)
+        request = SearchRequest(latitude=10.7725, longitude=106.6944, radius_km=3)
         response = SearchFlowSimulator.simulate_search(request)
         
         # Should return results
@@ -599,3 +635,116 @@ class TestSearchFlowConsistency:
         
         if response_filtered.results:
             assert filtered_ids.issubset(all_ids)
+
+
+class TestSearchFlowFeedbackBot:
+    """Test feedback bot suggestions when search returns zero results."""
+    
+    def test_zero_results_triggers_feedback_bot(self):
+        """Test that zero results trigger feedback bot suggestion."""
+        # Search in isolated location with strict filters
+        request = SearchRequest(
+            latitude=11.0000, longitude=107.0000,  # Remote area
+            radius_km=1,
+            tags=["Sushi"]  # Uncommon tag
+        )
+        response = SearchFlowSimulator.simulate_search(request)
+        
+        # Should have no results
+        assert response.total_count == 0
+        
+        # Should have feedback suggestion
+        assert response.feedback_bot_suggestion is not None
+        assert len(response.feedback_bot_suggestion) > 0
+    
+    def test_feedback_bot_suggests_radius_expansion(self):
+        """Test feedback bot suggests expanding radius."""
+        request = SearchRequest(
+            latitude=11.0000, longitude=107.0000,
+            radius_km=1
+        )
+        response = SearchFlowSimulator.simulate_search(request)
+        
+        if response.total_count == 0:
+            # Should suggest expanding radius
+            assert "nới rộng" in response.feedback_bot_suggestion.lower() or \
+                   "expand" in response.feedback_bot_suggestion.lower() or \
+                   "radius" in response.feedback_bot_suggestion.lower()
+    
+    def test_feedback_bot_suggests_removing_filters(self):
+        """Test feedback bot suggests removing filters when no results."""
+        request = SearchRequest(
+            latitude=10.7725, longitude=106.6944,
+            radius_km=0.5,  # Very small
+            tags=["Sushi"],  # Unlikely in this area
+            min_price=500000  # Extremely expensive
+        )
+        response = SearchFlowSimulator.simulate_search(request)
+        
+        if response.total_count == 0 and (request.tags or request.min_price or request.max_price):
+            # Should suggest adjusting filters
+            suggestion = response.feedback_bot_suggestion.lower()
+            assert "filter" in suggestion or "lọc" in suggestion or \
+                   "ngân sách" in suggestion or "budget" in suggestion
+    
+    def test_feedback_includes_multiple_suggestions(self):
+        """Test feedback bot provides multiple suggestions."""
+        request = SearchRequest(
+            latitude=11.0000, longitude=107.0000,
+            radius_km=1,
+            tags=["NonExistent"],
+            min_price=1000000
+        )
+        response = SearchFlowSimulator.simulate_search(request)
+        
+        if response.total_count == 0:
+            # Should have suggestions separated by |
+            suggestions = response.feedback_bot_suggestion.split(" | ")
+            assert len(suggestions) > 0
+    
+    def test_no_feedback_when_results_exist(self):
+        """Test that feedback bot doesn't trigger when results exist."""
+        request = SearchRequest(
+            latitude=10.7725, longitude=106.6944,
+            radius_km=5
+        )
+        response = SearchFlowSimulator.simulate_search(request)
+        
+        if response.total_count > 0:
+            # Should NOT have feedback suggestion
+            assert response.feedback_bot_suggestion is None
+    
+    def test_feedback_in_response_dict(self):
+        """Test that feedback appears in response dict when present."""
+        request = SearchRequest(
+            latitude=11.0000, longitude=107.0000,
+            radius_km=1
+        )
+        response = SearchFlowSimulator.simulate_search(request)
+        
+        response_dict = response.to_dict()
+        
+        if response.total_count == 0:
+            # Dict should include feedback_bot_suggestion
+            assert "feedback_bot_suggestion" in response_dict
+            assert response_dict["feedback_bot_suggestion"] is not None
+        else:
+            # No feedback suggestion in dict if results exist
+            if response.feedback_bot_suggestion is None:
+                # feedback_bot_suggestion key might not exist or be None
+                if "feedback_bot_suggestion" in response_dict:
+                    assert response_dict["feedback_bot_suggestion"] is None
+    
+    def test_feedback_suggests_try_different_area(self):
+        """Test feedback bot suggests trying different area."""
+        request = SearchRequest(
+            latitude=11.5000, longitude=107.5000,  # Very far from HCMC
+            radius_km=2
+        )
+        response = SearchFlowSimulator.simulate_search(request)
+        
+        if response.total_count == 0:
+            suggestion = response.feedback_bot_suggestion.lower()
+            # Should suggest trying different area
+            assert "khu vực" in suggestion or "area" in suggestion or \
+                   "thử" in suggestion

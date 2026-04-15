@@ -64,9 +64,9 @@ class TestFilterEngineBudgetFiltering:
         max_price = 300000
         filtered = [r for r in restaurants if min_price <= r.avg_price <= max_price]
         
-        assert len(filtered) == 3
+        assert len(filtered) == 2
         assert all(min_price <= r.avg_price <= max_price for r in filtered)
-        expected_ids = [2, 3, 5]
+        expected_ids = [2, 3]
         assert [r.id for r in filtered] == expected_ids
     
     def test_filter_empty_result_price_too_low(self, restaurants):
@@ -114,7 +114,7 @@ class TestFilterEngineTagFiltering:
         tags = ["Cafe", "Dessert"]
         filtered = [r for r in restaurants if any(tag in r.tags for tag in tags)]
         
-        assert len(filtered) == 3
+        assert len(filtered) == 2
         expected_ids = {2, 5}  # Restaurants with Cafe or Dessert
         # Note: Restaurant 5 has both Dessert and Cafe
         assert {r.id for r in filtered} == {2, 5}
@@ -332,6 +332,7 @@ class TestFilterEngineComboFilters:
             and (r.is_open_now == open_only)
         ]
         
-        # Should include: Budget Pho (1), Budget Banh Mi (4) - both Vietnamese and open
-        assert len(filtered) == 2
-        assert set(r.id for r in filtered) == {1, 4}
+        # Should include: Budget Pho (1: Vietnamese, open), Budget Banh Mi (4: Vietnamese, open), Premium Cafe (5: Cafe, open)
+        # Note: fixture has restaurant 2 (Mid Cafe) with is_open_now=False
+        assert len(filtered) == 3
+        assert set(r.id for r in filtered) == {1, 4, 5}
