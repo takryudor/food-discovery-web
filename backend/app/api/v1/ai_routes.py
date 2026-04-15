@@ -10,7 +10,7 @@ router = APIRouter(
 @router.post("/chatbox", response_model=ChatBoxResponse)
 def chatbox(request: ChatBoxRequest):
     """
-    Takes user text input and prompts Gemini AI (or returns mock data)
+    Takes user text input and prompts Groq AI (or returns mock data)
     to recommend a list of restaurants.
     """
     return ai_facade.handle_chatbox(request)
