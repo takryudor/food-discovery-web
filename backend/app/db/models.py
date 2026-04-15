@@ -29,6 +29,13 @@ place_amenities = Table(
 	Column("amenity_id", ForeignKey("amenities.id", ondelete="CASCADE"), primary_key=True),
 )
 
+place_budget_ranges = Table(
+	"place_budget_ranges",
+	Base.metadata,
+	Column("place_id", ForeignKey("places.id", ondelete="CASCADE"), primary_key=True),
+	Column("budget_range_id", ForeignKey("budget_ranges.id", ondelete="CASCADE"), primary_key=True),
+)
+
 
 class Place(Base):
 	__tablename__ = "places"
@@ -40,6 +47,13 @@ class Place(Base):
 	address: Mapped[str | None] = mapped_column(String(512), nullable=True)
 	latitude: Mapped[float] = mapped_column(Float)
 	longitude: Mapped[float] = mapped_column(Float)
+
+	# Additional fields for detail view
+	rating: Mapped[float | None] = mapped_column(Float, nullable=True)
+	phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+	open_hours: Mapped[str | None] = mapped_column(String(100), nullable=True)
+	price_range: Mapped[str | None] = mapped_column(String(100), nullable=True)
+	cover_image: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
 	# Quan hệ (dùng `selectin` để load tag hiệu quả, tránh N+1 queries)
 	concepts: Mapped[list[Concept]] = relationship(
@@ -54,6 +68,11 @@ class Place(Base):
 	)
 	amenities: Mapped[list[Amenity]] = relationship(
 		secondary=place_amenities,
+		back_populates="places",
+		lazy="selectin",
+	)
+	budget_ranges: Mapped[list[BudgetRange]] = relationship(
+		secondary=place_budget_ranges,
 		back_populates="places",
 		lazy="selectin",
 	)
@@ -98,6 +117,20 @@ class Amenity(Base):
 	places: Mapped[list[Place]] = relationship(
 		secondary=place_amenities,
 		back_populates="amenities",
+		lazy="selectin",
+	)
+
+
+class BudgetRange(Base):
+	__tablename__ = "budget_ranges"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+	name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+	slug: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+
+	places: Mapped[list[Place]] = relationship(
+		secondary=place_budget_ranges,
+		back_populates="budget_ranges",
 		lazy="selectin",
 	)
 

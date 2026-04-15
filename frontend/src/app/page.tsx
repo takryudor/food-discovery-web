@@ -63,6 +63,8 @@ export default function App() {
               <MapView
                 onBackHome={handleBackHome}
                 aiRecommendations={aiRecommendations}
+                theme={theme}
+                onThemeChange={setTheme}
               />
             </motion.div>
           )}
