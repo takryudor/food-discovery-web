@@ -1,13 +1,16 @@
-import { motion } from 'motion/react';
-import { CheckCircle, Sparkles } from 'lucide-react';
-import { useLanguage } from './LanguageContext';
+import { motion } from "motion/react";
+import { CheckCircle, Sparkles } from "lucide-react";
+import { useLanguage } from "./LanguageContext";
 
 interface CompletionDialogProps {
   onGoHome: () => void;
   onContinue: () => void;
 }
 
-export default function CompletionDialog({ onGoHome, onContinue }: CompletionDialogProps) {
+export default function CompletionDialog({
+  onGoHome,
+  onContinue,
+}: CompletionDialogProps) {
   const { t } = useLanguage();
 
   return (
@@ -21,7 +24,7 @@ export default function CompletionDialog({ onGoHome, onContinue }: CompletionDia
       <motion.div
         initial={{ scale: 0.5, opacity: 0, rotate: -5 }}
         animate={{ scale: 1, opacity: 1, rotate: 0 }}
-        transition={{ type: 'spring', damping: 20 }}
+        transition={{ type: "spring", damping: 20 }}
         className="fixed inset-0 z-[70] flex items-center justify-center p-6"
       >
         <div className="bg-white dark:bg-neutral-900 rounded-[32px] shadow-2xl max-w-lg w-full p-10 text-center space-y-8">
@@ -29,7 +32,7 @@ export default function CompletionDialog({ onGoHome, onContinue }: CompletionDia
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring', damping: 15 }}
+            transition={{ delay: 0.2, type: "spring", damping: 15 }}
             className="flex justify-center"
           >
             <div className="relative">
@@ -42,7 +45,10 @@ export default function CompletionDialog({ onGoHome, onContinue }: CompletionDia
                 className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-600 rounded-full blur-3xl"
               />
               <div className="relative bg-green-500/10 p-6 rounded-full">
-                <CheckCircle className="w-24 h-24 text-green-500" strokeWidth={1.5} />
+                <CheckCircle
+                  className="w-24 h-24 text-green-500"
+                  strokeWidth={1.5}
+                />
               </div>
             </div>
           </motion.div>
@@ -78,18 +84,18 @@ export default function CompletionDialog({ onGoHome, onContinue }: CompletionDia
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
               className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent"
-              style={{ fontFamily: 'Playfair Display, serif' }}
+              style={{ fontFamily: "Playfair Display, serif" }}
             >
-              {t('journeyComplete')}
+              {t("journeyComplete")}
             </motion.h2>
             <motion.p
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.4 }}
               className="text-neutral-600 dark:text-neutral-400 text-lg"
-              style={{ fontFamily: 'Inter, sans-serif', fontWeight: 300 }}
+              style={{ fontFamily: "Inter, sans-serif", fontWeight: 300 }}
             >
-              {t('backToHome')}
+              {t("backToHome")}
             </motion.p>
           </div>
 
@@ -105,18 +111,18 @@ export default function CompletionDialog({ onGoHome, onContinue }: CompletionDia
               whileTap={{ scale: 0.98 }}
               onClick={onContinue}
               className="flex-1 py-4 rounded-2xl border-2 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-              style={{ fontFamily: 'Inter, sans-serif' }}
+              style={{ fontFamily: "Inter, sans-serif" }}
             >
-              {t('continueBrowsing')}
+              {t("continueBrowsing")}
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={onGoHome}
               className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold shadow-[0_8px_24px_rgba(255,143,67,0.4)] hover:shadow-[0_12px_32px_rgba(255,143,67,0.6)] transition-all"
-              style={{ fontFamily: 'Inter, sans-serif' }}
+              style={{ fontFamily: "Inter, sans-serif" }}
             >
-              {t('yes')}
+              {t("yes")}
             </motion.button>
           </motion.div>
         </div>
