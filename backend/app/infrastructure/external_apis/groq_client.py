@@ -48,9 +48,19 @@ class GroqClient:
             model="llama-3.1-8b-instant",
         )
 
-        raw = chat_completion.choices[0].message.content
-
         import logging
+
+        choices = getattr(chat_completion, "choices", None)
+        if not choices:
+            logging.warning("[GroqClient] Empty or missing choices in Groq response")
+            return []
+
+        first_choice = choices[0]
+        message = getattr(first_choice, "message", None)
+        raw = getattr(message, "content", None) if message is not None else None
+        if raw is None:
+            logging.warning("[GroqClient] Missing message content in Groq response")
+            return []
         logging.warning(f"[GroqClient] raw response: {raw}")
 
         try:
