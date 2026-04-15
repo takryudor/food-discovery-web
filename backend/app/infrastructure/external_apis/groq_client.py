@@ -58,14 +58,15 @@ class GroqClient:
             # Groq with json_object mode always returns a dict wrapper
             if isinstance(parsed, list):
                 return parsed
-            # Try common wrapper keys
-            for key in ("recommendations", "restaurants", "results", "data", "items"):
-                if key in parsed and isinstance(parsed[key], list):
-                    return parsed[key]
-            # Fallback: return the first list value found
-            for val in parsed.values():
-                if isinstance(val, list):
-                    return val
+            if isinstance(parsed, dict):
+                # Try common wrapper keys
+                for key in ("recommendations", "restaurants", "results", "data", "items"):
+                    if key in parsed and isinstance(parsed[key], list):
+                        return parsed[key]
+                # Fallback: return the first list value found
+                for val in parsed.values():
+                    if isinstance(val, list):
+                        return val
             logging.warning(f"[GroqClient] Could not extract list from: {parsed}")
             return []
         except json.JSONDecodeError as e:
