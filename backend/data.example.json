@@ -1,0 +1,47 @@
+{
+  "concepts": [
+    { "name": "Ẩm thực đường phố", "slug": "street-food" },
+    { "name": "Cà phê view đẹp", "slug": "scenic-cafe" }
+  ],
+  "purposes": [
+    { "name": "Ăn sáng", "slug": "breakfast" },
+    { "name": "Chill / Tán gẫu", "slug": "chill" }
+  ],
+  "amenities": [
+    { "name": "Có bãi đỗ xe", "slug": "parking" },
+    { "name": "Wi-Fi", "slug": "wifi" }
+  ],
+  "places": [
+    {
+      "name": "Phở Nam Sài Gòn",
+      "description": "Phở bò truyền thống, nước dùng đậm đà.",
+      "address": "Q.1, TP.HCM",
+      "latitude": 10.7769,
+      "longitude": 106.7009,
+      "concepts": ["street-food"],
+      "purposes": ["breakfast"],
+      "amenities": ["parking"]
+    },
+    {
+      "name": "Bánh mì Góc Phố",
+      "description": "Bánh mì nóng giòn, nhiều topping.",
+      "address": "Q.3, TP.HCM",
+      "latitude": 10.7823,
+      "longitude": 106.6843,
+      "concepts": ["street-food"],
+      "purposes": ["breakfast"],
+      "amenities": ["wifi"]
+    },
+    {
+      "name": "Cafe Sân Thượng",
+      "description": "Cafe rooftop, view thành phố, phù hợp ngắm hoàng hôn.",
+      "address": "Q.Bình Thạnh, TP.HCM",
+      "latitude": 10.8032,
+      "longitude": 106.7170,
+      "concepts": ["scenic-cafe"],
+      "purposes": ["chill"],
+      "amenities": ["wifi", "parking"]
+    }
+  ]
+}
+
