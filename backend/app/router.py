@@ -9,6 +9,8 @@ from .routes.search import router as search_router
 settings = get_settings()
 router = APIRouter(prefix=settings.api_v1_prefix)
 
+# Include geo module routes
+router.include_router(geo_routes.router)
 router.include_router(ai_router)
 
 
