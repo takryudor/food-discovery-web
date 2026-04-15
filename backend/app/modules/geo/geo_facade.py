@@ -2,7 +2,6 @@ from typing import List
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select
 
 from app.modules.geo.services.map_service import MapService
 from app.modules.geo.services.nav_calculator import NavCalculator
@@ -19,14 +18,13 @@ class GeoFacade:
         self.nav_calculator = NavCalculator()
 
     async def get_map_markers(
-        self, restaurant_ids: List[int], db: Session
+        self, restaurant_ids: List[int]
     ) -> GeoJSONFeatureCollection:
         """
         Lấy thông tin nhà hàng từ DB và map sang định dạng GeoJSON.
         
         Args:
             restaurant_ids: Danh sách ID quán ăn
-            db: Database session
             
         Returns:
             GeoJSONFeatureCollection: GeoJSON markers cho map

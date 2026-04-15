@@ -61,21 +61,34 @@ class NavCalculator:
 
             data = response.json()
 
-            if (
-                data.get("status") != "OK"
-                or not data["rows"][0]["elements"]
-            ):
+            if data.get("status") != "OK":
+                raise HTTPException(status_code=400, detail="INVALID_COORDS")
+            
+            # Safely access nested dictionary
+            rows = data.get("rows", [])
+            if not rows:
+                raise HTTPException(status_code=400, detail="INVALID_COORDS")
+                
+            elements = rows[0].get("elements", [])
+            if not elements:
                 raise HTTPException(status_code=400, detail="INVALID_COORDS")
 
-            element = data["rows"][0]["elements"][0]
+            element = elements[0]
 
             # Xử lý trường hợp không tìm thấy đường đi
             if element.get("status") == "ZERO_RESULTS":
                 raise HTTPException(status_code=400, detail="NO_ROUTE_FOUND")
 
+            # Safely access distance and duration
+            distance_info = element.get("distance")
+            duration_info = element.get("duration")
+            
+            if not distance_info or not duration_info:
+                raise HTTPException(status_code=503, detail="INCOMPLETE_RESPONSE")
+
             # Google API trả về mét và giây, convert sang km và phút
-            distance_km = round(element["distance"]["value"] / 1000, 1)
-            eta_minutes = round(element["duration"]["value"] / 60)
+            distance_km = round(distance_info["value"] / 1000, 1)
+            eta_minutes = round(duration_info["value"] / 60)
 
         maps_link = self._generate_google_maps_link(
             origin_lat, origin_lng, dest_lat, dest_lng, mode

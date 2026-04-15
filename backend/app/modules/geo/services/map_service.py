@@ -25,20 +25,36 @@ class MapService:
             
         Returns:
             GeoJSONFeatureCollection: GeoJSON collection ready for map display
+            
+        Raises:
+            KeyError: Nếu thiếu các trường bắt buộc
+            ValueError: Nếu dữ liệu không hợp lệ
         """
+        required_keys = {"id", "lat", "lng", "name", "avg_price", "rating"}
         features = []
-        for r in restaurants_data:
-            geometry = GeoJSONGeometry(coordinates=(r["lng"], r["lat"]))
+        
+        for idx, r in enumerate(restaurants_data):
+            # Validate required keys
+            missing_keys = required_keys - set(r.keys())
+            if missing_keys:
+                raise KeyError(
+                    f"Restaurant at index {idx} missing keys: {missing_keys}"
+                )
+            
+            try:
+                geometry = GeoJSONGeometry(coordinates=(r["lng"], r["lat"]))
 
-            properties = GeoJSONProperties(
-                id=r["id"],
-                name=r["name"],
-                avg_price=r["avg_price"],
-                rating=r["rating"],
-                is_open_now=r.get("is_open_now", True),
-            )
+                properties = GeoJSONProperties(
+                    id=r["id"],
+                    name=r["name"],
+                    avg_price=r["avg_price"],
+                    rating=r["rating"],
+                    is_open_now=r.get("is_open_now", True),
+                )
 
-            feature = GeoJSONFeature(geometry=geometry, properties=properties)
-            features.append(feature)
+                feature = GeoJSONFeature(geometry=geometry, properties=properties)
+                features.append(feature)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid data for restaurant at index {idx}: {str(e)}")
 
         return GeoJSONFeatureCollection(features=features)
