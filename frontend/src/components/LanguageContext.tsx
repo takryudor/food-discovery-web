@@ -49,6 +49,12 @@ const translations = {
     backHome: 'Trở về nhà',
     appTitle: 'FoOdyssey',
     appSubtitle: 'Khám phá hành trình ẩm thực của bạn',
+    aiChatPlaceholder: 'Hỏi AI về nhà hàng bạn muốn tìm...',
+    aiChatSend: 'Gửi',
+    aiChatLoading: 'AI đang suy nghĩ...',
+    aiChatError: 'Có lỗi xảy ra. Vui lòng thử lại.',
+    aiRecommendationsTitle: 'Gợi ý từ AI',
+    aiNoRecommendations: 'Không có gợi ý nào. Hãy thử hỏi khác nhé!',
   },
   en: {
     startJourney: 'Start Your Journey',
@@ -90,6 +96,12 @@ const translations = {
     backHome: 'Back Home',
     appTitle: 'FoOdyssey',
     appSubtitle: 'Discover your culinary journey',
+    aiChatPlaceholder: 'Ask AI about restaurants you want to find...',
+    aiChatSend: 'Send',
+    aiChatLoading: 'AI is thinking...',
+    aiChatError: 'An error occurred. Please try again.',
+    aiRecommendationsTitle: 'AI Recommendations',
+    aiNoRecommendations: 'No recommendations found. Try asking something different!',
   },
 };
 

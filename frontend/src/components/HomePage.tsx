@@ -1,20 +1,55 @@
 import { motion } from "motion/react";
-import { Utensils } from "lucide-react";
+import { Utensils, Send, Loader2, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { useLanguage } from "./LanguageContext";
 import SettingsDropdown from "./SettingsDropdown";
+import { sendChatboxMessage } from "@/lib/api";
+import { RestaurantRecommendation } from "@/lib/types";
 
 interface HomePageProps {
   onStartJourney: () => void;
   theme: "light" | "dark";
   onThemeChange: (theme: "light" | "dark") => void;
+  onAiRecommendations?: (recommendations: RestaurantRecommendation[]) => void;
 }
 
 export default function HomePage({
   onStartJourney,
   theme,
   onThemeChange,
+  onAiRecommendations,
 }: HomePageProps) {
   const { t } = useLanguage();
+  const [aiMessage, setAiMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSendMessage = async () => {
+    if (!aiMessage.trim()) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await sendChatboxMessage({ message: aiMessage.trim() });
+      if (onAiRecommendations) {
+        onAiRecommendations(response.recommendations);
+      }
+      onStartJourney();
+    } catch (err) {
+      const errorMessage = (err as Error).message || t("aiChatError");
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
@@ -116,6 +151,67 @@ export default function HomePage({
               {t("startJourney")}
             </span>
           </motion.button>
+
+          {/* AI Chatbox Section */}
+          <motion.div
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 1.1 }}
+            className="mt-8 w-full max-w-xl"
+          >
+            <div className="bg-white/60 dark:bg-neutral-900/60 backdrop-blur-xl rounded-3xl p-2 shadow-lg border border-white/50 dark:border-neutral-700/50">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Sparkles className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-500" />
+                  <input
+                    type="text"
+                    value={aiMessage}
+                    onChange={(e) => setAiMessage(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={t("aiChatPlaceholder")}
+                    disabled={isLoading}
+                    className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white/50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ fontFamily: "Inter, sans-serif" }}
+                  />
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSendMessage}
+                  disabled={isLoading || !aiMessage.trim()}
+                  className="p-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Error message */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-3 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm"
+              >
+                {error}
+              </motion.div>
+            )}
+
+            {/* Loading indicator */}
+            {isLoading && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mt-3 text-center text-neutral-600 dark:text-neutral-400 text-sm"
+              >
+                {t("aiChatLoading")}
+              </motion.div>
+            )}
+          </motion.div>
         </motion.div>
       </div>
     </div>

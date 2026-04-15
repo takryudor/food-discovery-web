@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, MapPin, Home, Utensils, SlidersHorizontal } from 'lucide-react';
+import { Search, MapPin, Home, Utensils, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useLanguage } from './LanguageContext';
 import RestaurantDetail from './RestaurantDetail';
+import { RestaurantRecommendation } from '@/lib/types';
 
 interface Restaurant {
   id: number;
@@ -18,12 +19,14 @@ interface Restaurant {
 
 interface MapViewProps {
   onBackHome: () => void;
+  aiRecommendations?: RestaurantRecommendation[];
 }
 
-export default function MapView({ onBackHome }: MapViewProps) {
+export default function MapView({ onBackHome, aiRecommendations = [] }: MapViewProps) {
   const { t } = useLanguage();
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [showAiRecommendations, setShowAiRecommendations] = useState(aiRecommendations.length > 0);
   const [showFilters, setShowFilters] = useState(true);
 
   // Filter states
@@ -41,16 +44,16 @@ export default function MapView({ onBackHome }: MapViewProps) {
   const radiusOptions = [3, 5, 8, 10];
 
   const mockRestaurants: Restaurant[] = [
-    { id: 1, name: 'Phở Hà Nội', lat: 50.3 + Math.random() * 0.5, lng: 50.3 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1555126634-323283e090fa', rating: 4.5, price: '50,000đ - 100,000đ', cuisine: 'Việt Nam', address: '123 Đường ABC, Quận 1' },
-    { id: 2, name: 'Sushi Master', lat: 50.4 + Math.random() * 0.5, lng: 50.4 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351', rating: 4.8, price: '200,000đ - 500,000đ', cuisine: 'Nhật Bản', address: '456 Đường XYZ, Quận 2' },
-    { id: 3, name: 'Pasta Paradise', lat: 50.5 + Math.random() * 0.5, lng: 50.2 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9', rating: 4.3, price: '150,000đ - 300,000đ', cuisine: 'Ý', address: '789 Đường DEF, Quận 3' },
-    { id: 4, name: 'BBQ Heaven', lat: 50.2 + Math.random() * 0.5, lng: 50.5 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1', rating: 4.6, price: '300,000đ - 600,000đ', cuisine: 'Hàn Quốc', address: '321 Đường GHI, Quận 4' },
-    { id: 5, name: 'Vegan Delight', lat: 50.6 + Math.random() * 0.5, lng: 50.3 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd', rating: 4.4, price: '80,000đ - 150,000đ', cuisine: 'Chay', address: '654 Đường JKL, Quận 5' },
-    { id: 6, name: 'Burger House', lat: 50.35 + Math.random() * 0.5, lng: 50.45 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd', rating: 4.2, price: '100,000đ - 200,000đ', cuisine: 'Mỹ', address: '987 Đường MNO, Quận 6' },
-    { id: 7, name: 'Dim Sum Palace', lat: 50.25 + Math.random() * 0.5, lng: 50.35 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d', rating: 4.7, price: '120,000đ - 250,000đ', cuisine: 'Trung Quốc', address: '147 Đường PQR, Quận 7' },
-    { id: 8, name: 'Taco Fiesta', lat: 50.45 + Math.random() * 0.5, lng: 50.25 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47', rating: 4.5, price: '90,000đ - 180,000đ', cuisine: 'Mexico', address: '258 Đường STU, Quận 8' },
-    { id: 9, name: 'French Bistro', lat: 50.55 + Math.random() * 0.5, lng: 50.15 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0', rating: 4.9, price: '400,000đ - 800,000đ', cuisine: 'Pháp', address: '369 Đường VWX, Quận 9' },
-    { id: 10, name: 'Thai Spice', lat: 50.15 + Math.random() * 0.5, lng: 50.55 + Math.random() * 0.5, image: 'https://images.unsplash.com/photo-1559314809-0d155014e29e', rating: 4.6, price: '110,000đ - 220,000đ', cuisine: 'Thái Lan', address: '741 Đường YZ, Quận 10' },
+    { id: 1, name: 'Phở Hà Nội', lat: 50.55, lng: 50.65, image: 'https://images.unsplash.com/photo-1555126634-323283e090fa', rating: 4.5, price: '50,000đ - 100,000đ', cuisine: 'Việt Nam', address: '123 Đường ABC, Quận 1' },
+    { id: 2, name: 'Sushi Master', lat: 50.65, lng: 50.75, image: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351', rating: 4.8, price: '200,000đ - 500,000đ', cuisine: 'Nhật Bản', address: '456 Đường XYZ, Quận 2' },
+    { id: 3, name: 'Pasta Paradise', lat: 50.75, lng: 50.45, image: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9', rating: 4.3, price: '150,000đ - 300,000đ', cuisine: 'Ý', address: '789 Đường DEF, Quận 3' },
+    { id: 4, name: 'BBQ Heaven', lat: 50.45, lng: 50.85, image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1', rating: 4.6, price: '300,000đ - 600,000đ', cuisine: 'Hàn Quốc', address: '321 Đường GHI, Quận 4' },
+    { id: 5, name: 'Vegan Delight', lat: 50.85, lng: 50.55, image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd', rating: 4.4, price: '80,000đ - 150,000đ', cuisine: 'Chay', address: '654 Đường JKL, Quận 5' },
+    { id: 6, name: 'Burger House', lat: 50.6, lng: 50.7, image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd', rating: 4.2, price: '100,000đ - 200,000đ', cuisine: 'Mỹ', address: '987 Đường MNO, Quận 6' },
+    { id: 7, name: 'Dim Sum Palace', lat: 50.5, lng: 50.6, image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d', rating: 4.7, price: '120,000đ - 250,000đ', cuisine: 'Trung Quốc', address: '147 Đường PQR, Quận 7' },
+    { id: 8, name: 'Taco Fiesta', lat: 50.7, lng: 50.5, image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47', rating: 4.5, price: '90,000đ - 180,000đ', cuisine: 'Mexico', address: '258 Đường STU, Quận 8' },
+    { id: 9, name: 'French Bistro', lat: 50.8, lng: 50.4, image: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0', rating: 4.9, price: '400,000đ - 800,000đ', cuisine: 'Pháp', address: '369 Đường VWX, Quận 9' },
+    { id: 10, name: 'Thai Spice', lat: 50.4, lng: 50.9, image: 'https://images.unsplash.com/photo-1559314809-0d155014e29e', rating: 4.6, price: '110,000đ - 220,000đ', cuisine: 'Thái Lan', address: '741 Đường YZ, Quận 10' },
   ];
 
   const handleSearch = () => {
@@ -331,6 +334,79 @@ export default function MapView({ onBackHome }: MapViewProps) {
             onClose={() => setSelectedRestaurant(null)}
             onConfirm={() => setSelectedRestaurant(null)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* AI Recommendations Panel */}
+      <AnimatePresence>
+        {showAiRecommendations && aiRecommendations.length > 0 && (
+          <motion.div
+            initial={{ x: -100, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -100, opacity: 0 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            className="absolute left-8 bottom-8 w-full max-w-sm z-20"
+          >
+            <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 dark:border-neutral-700/50 overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-neutral-200/50 dark:border-neutral-700/50 bg-gradient-to-r from-orange-500/10 to-red-500/10">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-orange-500" />
+                  <h3 className="font-bold text-neutral-800 dark:text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
+                    {t('aiRecommendationsTitle')}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowAiRecommendations(false)}
+                  className="absolute top-4 right-4 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Recommendations List */}
+              <div className="max-h-80 overflow-y-auto">
+                {aiRecommendations.map((rec, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="p-4 border-b border-neutral-200/50 dark:border-neutral-700/50 last:border-b-0 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50 transition-colors"
+                  >
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-neutral-800 dark:text-white text-sm">
+                        {rec.name}
+                      </h4>
+                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                        <MapPin className="w-3 h-3 inline mr-1" />
+                        {rec.address}
+                      </p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-500 italic">
+                        {rec.reason}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Show AI Recommendations Button (when hidden but has data) */}
+      <AnimatePresence>
+        {!showAiRecommendations && aiRecommendations.length > 0 && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            onClick={() => setShowAiRecommendations(true)}
+            className="absolute left-8 bottom-8 z-20 px-4 py-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-full shadow-lg border border-white/50 dark:border-neutral-700/50 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-white hover:shadow-xl transition-all"
+          >
+            <Sparkles className="w-4 h-4 text-orange-500" />
+            {t('aiRecommendationsTitle')}
+          </motion.button>
         )}
       </AnimatePresence>
     </div>
