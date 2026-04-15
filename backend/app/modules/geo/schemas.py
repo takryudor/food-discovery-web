@@ -15,8 +15,8 @@ class GeoJSONProperties(BaseModel):
     is_open_now: bool 
 
 class GeoJSONGeometry(BaseModel): 
-    type str = "Point"
-    coordiates: Tuple[float, float] 
+    type: str = "Point"
+    coordinates: Tuple[float, float]
 
 class GeoJSONFeature(BaseModel): 
     type: str = "Feature"
