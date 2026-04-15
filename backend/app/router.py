@@ -1,12 +1,15 @@
 from fastapi import APIRouter
 
 from .core.config import get_settings
+from .api.v1.ai_routes import router as ai_router
 from .routes.filters import router as filters_router
 from .routes.search import router as search_router
 
 
 settings = get_settings()
 router = APIRouter(prefix=settings.api_v1_prefix)
+
+router.include_router(ai_router)
 
 
 @router.get("/health", tags=["health"])
