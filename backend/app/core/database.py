@@ -11,6 +11,13 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
+    """
+    Dependency function to get a database session.
+    It creates a new session, yields it to the route, and closes it after the request completes.
+
+    Yields:
+        Session: The SQLAlchemy database session.
+    """
     db = SessionLocal()
     try:
         yield db

@@ -6,7 +6,14 @@ settings = get_settings()
 
 
 class GroqClient:
+    """
+    Client wrapper for calling the external Groq API to retrieve AI completions.
+    """
     def __init__(self):
+        """
+        Initializes the GroqClient. If an API key is available in the settings, 
+        setup the physical Groq client. Otherwise, set it to None to use mock data.
+        """
         self.api_key = settings.groq_api_key
         if self.api_key:
             self.client = Groq(api_key=self.api_key)
@@ -17,6 +24,12 @@ class GroqClient:
         """
         Sends a prompt to Groq (llama3) asking for restaurant recommendations in JSON format.
         If no API key is provided, returns mock data.
+
+        Args:
+            prompt (str): The user's input/query for restaurant recommendations.
+
+        Returns:
+            list[dict]: A list of dictionaries, each containing 'name', 'address', and 'reason'.
         """
         if not self.client:
             return [

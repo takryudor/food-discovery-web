@@ -22,4 +22,11 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+	"""
+	Retrieve the application settings.
+	Using lru_cache to ensure we only read the environment variables once.
+
+	Returns:
+		Settings: The application settings object.
+	"""
 	return Settings()
