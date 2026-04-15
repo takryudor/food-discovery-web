@@ -11,9 +11,25 @@ services:
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/workspace
+    environment:
+      - DATABASE_URL=postgresql+psycopg://foodyssey:foodyssey@postgres:5432/foodyssey
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
-    profiles: ["db"]
     ports:
       - "5432:5432"
     environment:

@@ -1,22 +1,27 @@
 from fastapi import APIRouter
 
-from app.core.config import get_settings
-from app.api.v1 import geo_routes
+from .core.config import get_settings
+from .api.v1.ai_routes import router as ai_router
+from .routes.filters import router as filters_router
+from .routes.search import router as search_router
+
 
 settings = get_settings()
 router = APIRouter(prefix=settings.api_v1_prefix)
 
 # Include geo module routes
 router.include_router(geo_routes.router)
+router.include_router(ai_router)
 
 
 @router.get("/health", tags=["health"])
 def health_check() -> dict[str, str]:
-    """
-    Health check endpoint.
-    """
-    return {
-        "status": "ok",
-        "app_name": settings.app_name,
-        "environment": settings.app_env,
-    }
+	return {
+		"status": "ok",
+		"app_name": settings.app_name,
+		"environment": settings.app_env,
+	}
+
+
+router.include_router(search_router)
+router.include_router(filters_router)

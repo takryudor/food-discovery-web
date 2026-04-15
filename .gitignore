@@ -31,6 +31,10 @@ yarn-error.log*
 *.dump
 *.db
 
+# Private datasets (do not commit)
+backend/data/
+!backend/data.example.json
+
 # Media / Uploads (Local test)
 # Thay đổi đường dẫn này theo đúng thư mục lưu trữ ảnh OCR/Avatar của bạn
 backend/uploads/
