@@ -159,10 +159,11 @@ Start DB only:
 docker compose up -d postgres
 ```
 
-Default connection values:
+Default connection values, use in Adminer as well:
 
 - Host: localhost
 - Port: 5432
+- Server: postgre
 - Database: foodyssey
 - User: foodyssey
 - Password: foodyssey
