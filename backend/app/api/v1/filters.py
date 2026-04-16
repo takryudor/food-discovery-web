@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..core.config import get_settings
-from ..db.models import Amenity, Concept, Purpose, BudgetRange
-from ..db.session import get_db
-from ..schemas.common import IdName
-from ..utils.cache import cache_get, cache_set
+from app.core.config import get_settings
+from app.db.models import Amenity, Concept, Purpose, BudgetRange
+from app.db.session import get_db
+from app.schemas.common import IdName
+from app.utils.cache import cache_get, cache_set
 
 
 router = APIRouter(prefix="/filters", tags=["filters"])

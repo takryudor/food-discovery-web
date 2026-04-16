@@ -3,14 +3,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..db.session import get_db
-from ..schemas.restaurant import (
+from app.db.session import get_db
+from app.schemas.restaurant import (
     RestaurantDetailResponse,
     RestaurantSuggestion,
     FulltextSearchResponse,
     TagOut,
 )
-from ..services.restaurant_service import (
+from app.services.restaurant_service import (
     get_restaurant_by_id,
     search_restaurant_suggestions,
 )

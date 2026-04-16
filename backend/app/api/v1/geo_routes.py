@@ -7,7 +7,7 @@ from app.modules.geo.schemas import (
     RouteResponse,
 )
 from app.modules.geo.geo_facade import geo_facade
-from app.core.database import get_db
+from app.db.session import get_db
 
 router = APIRouter(prefix="/geo", tags=["Geo & Routing"])
 
@@ -20,13 +20,14 @@ router_map_markers_alias = APIRouter()
 @router_map_markers_alias.post("/map-markers", response_model=GeoJSONFeatureCollection)
 async def get_map_markers(
     payload: MapMarkerRequest,
+    db: Session = Depends(get_db),
 ) -> GeoJSONFeatureCollection:
     """
     Trả về GeoJSON markers cho map view dựa trên list ID truyền vào.
 
     - **payload.restaurant_ids**: Danh sách ID quán ăn cần hiển thị
     """
-    return await geo_facade.get_map_markers(payload.restaurant_ids)
+    return await geo_facade.get_map_markers(payload.restaurant_ids, db)
 
 
 @router.get("/get-route/{restaurant_id}", response_model=RouteResponse)

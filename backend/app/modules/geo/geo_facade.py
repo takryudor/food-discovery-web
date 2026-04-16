@@ -18,46 +18,34 @@ class GeoFacade:
         self.nav_calculator = NavCalculator()
 
     async def get_map_markers(
-        self, restaurant_ids: List[int]
+        self, restaurant_ids: List[int], db: Session
     ) -> GeoJSONFeatureCollection:
         """
         Lấy thông tin nhà hàng từ DB và map sang định dạng GeoJSON.
-        
-        Args:
-            restaurant_ids: Danh sách ID quán ăn
-            
-        Returns:
-            GeoJSONFeatureCollection: GeoJSON markers cho map
-            
-        Note:
-            Cần khôi phục import Restaurant model từ app.modules.discovery.models
-            khi model được định nghĩa đầy đủ.
         """
         if not restaurant_ids:
             return GeoJSONFeatureCollection(features=[])
 
-        # TODO: Uncomment once Restaurant model is defined in app.modules.discovery.models
-        # from app.modules.discovery.models import Restaurant
-        # stmt = select(Restaurant).where(Restaurant.id.in_(restaurant_ids))
-        # result = db.execute(stmt)
-        # restaurants = result.scalars().all()
-        #
-        # restaurants_data = [
-        #     {
-        #         "id": r.id,
-        #         "lat": r.latitude,
-        #         "lng": r.longitude,
-        #         "name": r.name,
-        #         "avg_price": r.avg_price,
-        #         "rating": r.rating,
-        #         "is_open_now": r.is_open_now,
-        #     }
-        #     for r in restaurants
-        # ]
-        # return self.map_service.create_geojson_collection(restaurants_data)
+        from app.db.models import Place
+        from sqlalchemy import select
 
-        # Fallback: Return empty collection until Restaurant model is implemented
-        return GeoJSONFeatureCollection(features=[])
+        stmt = select(Place).where(Place.id.in_(restaurant_ids))
+        result = db.execute(stmt)
+        restaurants = result.scalars().all()
+
+        restaurants_data = [
+            {
+                "id": r.id,
+                "lat": r.latitude,
+                "lng": r.longitude,
+                "name": r.name,
+                "avg_price": r.price_range or "N/A",
+                "rating": r.rating or 0.0,
+                "is_open_now": True,  # TODO: Implement open/close logic if needed
+            }
+            for r in restaurants
+        ]
+        return self.map_service.create_geojson_collection(restaurants_data)
 
     async def get_route(
         self,
@@ -69,42 +57,20 @@ class GeoFacade:
     ) -> RouteResponse:
         """
         Lấy tọa độ nhà hàng từ DB và tính toán lộ trình từ vị trí user.
-        
-        Args:
-            restaurant_id: ID quán ăn
-            user_lat: Vĩ độ vị trí người dùng
-            user_lng: Kinh độ vị trí người dùng
-            mode: Phương tiện di chuyển
-            db: Database session
-            
-        Returns:
-            RouteResponse: Thông tin lộ trình
-            
-        Raises:
-            HTTPException: Lỗi khi quán ăn không tồn tại hoặc lỗi API
-            
-        Note:
-            Cần khôi phục import Restaurant model từ app.modules.discovery.models
-            khi model được định nghĩa đầy đủ.
         """
-        # TODO: Uncomment once Restaurant model is defined in app.modules.discovery.models
-        # from app.modules.discovery.models import Restaurant
-        # restaurant = db.query(Restaurant).filter(
-        #     Restaurant.id == restaurant_id
-        # ).first()
-        # if not restaurant:
-        #     raise HTTPException(status_code=404, detail="RESTAURANT_NOT_FOUND")
-        #
-        # dest_lat = restaurant.latitude
-        # dest_lng = restaurant.longitude
-
         if not restaurant_id:
             raise HTTPException(status_code=400, detail="INVALID_RESTAURANT_ID")
 
-        # Temporary: Mock coordinates for Bitexco
-        # TODO: Replace with real coordinates from Restaurant model
-        dest_lat = 10.7716
-        dest_lng = 106.7044
+        from app.db.models import Place
+        restaurant = db.query(Place).filter(
+            Place.id == restaurant_id
+        ).first()
+
+        if not restaurant:
+            raise HTTPException(status_code=404, detail="RESTAURANT_NOT_FOUND")
+
+        dest_lat = restaurant.latitude
+        dest_lng = restaurant.longitude
 
         # Gọi service tính toán đường đi
         return await self.nav_calculator.get_route_info(
