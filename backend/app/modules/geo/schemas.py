@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 
 class MapMarkerRequest(BaseModel):
@@ -11,8 +11,8 @@ class MapMarkerRequest(BaseModel):
 class GeoJSONProperties(BaseModel):
     id: int
     name: str
-    avg_price: int = Field(gt=0, description="Giá trung bình (phải > 0)")
-    rating: float = Field(ge=0, le=5, description="Đánh giá (0-5)")
+    avg_price: Optional[str] = Field(None, description="Giá trung bình (ví dụ: '50k' hoặc 'N/A')")
+    rating: Optional[float] = Field(None, ge=0, le=5, description="Đánh giá (0-5), có thể trống")
     is_open_now: bool
 
 

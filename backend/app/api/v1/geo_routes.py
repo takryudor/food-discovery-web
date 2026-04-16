@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Path
 from sqlalchemy.orm import Session
 
 from app.modules.geo.schemas import (
@@ -7,26 +7,32 @@ from app.modules.geo.schemas import (
     RouteResponse,
 )
 from app.modules.geo.geo_facade import geo_facade
-from app.core.database import get_db
+from app.db.session import get_db
 
 router = APIRouter(prefix="/geo", tags=["Geo & Routing"])
 
 
+# Router alias cho /map-markers (không prefix /geo)
+router_map_markers_alias = APIRouter()
+
+
 @router.post("/map-markers", response_model=GeoJSONFeatureCollection)
+@router_map_markers_alias.post("/map-markers", response_model=GeoJSONFeatureCollection)
 async def get_map_markers(
     payload: MapMarkerRequest,
+    db: Session = Depends(get_db),
 ) -> GeoJSONFeatureCollection:
     """
     Trả về GeoJSON markers cho map view dựa trên list ID truyền vào.
-    
+
     - **payload.restaurant_ids**: Danh sách ID quán ăn cần hiển thị
     """
-    return await geo_facade.get_map_markers(payload.restaurant_ids)
+    return await geo_facade.get_map_markers(payload.restaurant_ids, db)
 
 
 @router.get("/get-route/{restaurant_id}", response_model=RouteResponse)
 async def get_route(
-    restaurant_id: int = Query(..., gt=0, description="ID quán ăn"),
+    restaurant_id: int = Path(..., gt=0, description="ID quán ăn"),
     user_lat: float = Query(
         ..., ge=-90, le=90, description="Vĩ độ hiện tại của người dùng"
     ),

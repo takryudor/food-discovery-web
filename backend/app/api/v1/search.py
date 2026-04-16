@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..db.session import get_db
-from ..schemas.search import SearchRequest, SearchResponse
-from ..services.search_service import search_places
+from app.db.session import get_db
+from app.schemas.search import SearchRequest, SearchResponse
+from app.services.search_service import search_places
 
 
 router = APIRouter(prefix="/search", tags=["search"])
