@@ -1,0 +1,131 @@
+import os
+
+import httpx
+from fastapi import HTTPException
+
+from app.modules.geo.schemas import RouteResponse
+
+
+class NavCalculator:
+    """
+    Service xử lý định tuyến và tính toán khoảng cách / ETA.
+    """
+
+    def __init__(self):
+        # Lấy API Key từ biến môi trường (cấu hình trong file .env)
+        self.api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+        self.base_url = "https://maps.googleapis.com/maps/api/distancematrix/json"
+
+    async def get_route_info(
+        self,
+        origin_lat: float,
+        origin_lng: float,
+        dest_lat: float,
+        dest_lng: float,
+        mode: str,
+    ) -> RouteResponse:
+        """
+        Gọi Google Distance Matrix API để tính ETA và khoảng cách thực tế.
+        
+        Args:
+            origin_lat: Vĩ độ điểm khởi hành
+            origin_lng: Kinh độ điểm khởi hành
+            dest_lat: Vĩ độ điểm đến
+            dest_lng: Kinh độ điểm đến
+            mode: Phương tiện (driving, walking, bicycling, transit)
+            
+        Returns:
+            RouteResponse: Thông tin lộ trình
+            
+        Raises:
+            HTTPException: Lỗi API hoặc không tìm thấy đường
+        """
+        if not self.api_key:
+            # Fallback logic nếu chưa có API Key khi dev local
+            return self._mock_route_response(
+                origin_lat, origin_lng, dest_lat, dest_lng, mode
+            )
+
+        params = {
+            "origins": f"{origin_lat},{origin_lng}",
+            "destinations": f"{dest_lat},{dest_lng}",
+            "mode": mode,
+            "key": self.api_key,
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(self.base_url, params=params)
+
+            if response.status_code != 200:
+                raise HTTPException(status_code=503, detail="MAPS_SERVICE_ERROR")
+
+            data = response.json()
+
+            if data.get("status") != "OK":
+                raise HTTPException(status_code=400, detail="INVALID_COORDS")
+            
+            # Safely access nested dictionary
+            rows = data.get("rows", [])
+            if not rows:
+                raise HTTPException(status_code=400, detail="INVALID_COORDS")
+                
+            elements = rows[0].get("elements", [])
+            if not elements:
+                raise HTTPException(status_code=400, detail="INVALID_COORDS")
+
+            element = elements[0]
+
+            # Xử lý trường hợp không tìm thấy đường đi
+            if element.get("status") == "ZERO_RESULTS":
+                raise HTTPException(status_code=400, detail="NO_ROUTE_FOUND")
+
+            # Safely access distance and duration
+            distance_info = element.get("distance")
+            duration_info = element.get("duration")
+            
+            if not distance_info or not duration_info:
+                raise HTTPException(status_code=503, detail="INCOMPLETE_RESPONSE")
+
+            # Google API trả về mét và giây, convert sang km và phút
+            distance_km = round(distance_info["value"] / 1000, 1)
+            eta_minutes = round(duration_info["value"] / 60)
+
+        maps_link = self._generate_google_maps_link(
+            origin_lat, origin_lng, dest_lat, dest_lng, mode
+        )
+
+        return RouteResponse(
+            distance_km=distance_km,
+            eta_minutes=eta_minutes,
+            maps_link=maps_link,
+            mode=mode,
+        )
+
+    def _generate_google_maps_link(
+        self,
+        origin_lat: float,
+        origin_lng: float,
+        dest_lat: float,
+        dest_lng: float,
+        mode: str,
+    ) -> str:
+        """Tạo deep link mở Google Maps."""
+        return f"https://www.google.com/maps/dir/?api=1&origin={origin_lat},{origin_lng}&destination={dest_lat},{dest_lng}&travelmode={mode}"
+
+    def _mock_route_response(
+        self,
+        origin_lat: float,
+        origin_lng: float,
+        dest_lat: float,
+        dest_lng: float,
+        mode: str,
+    ) -> RouteResponse:
+        """Mock data cho môi trường dev khi chưa gắn API Key."""
+        return RouteResponse(
+            distance_km=2.5,
+            eta_minutes=15,
+            maps_link=self._generate_google_maps_link(
+                origin_lat, origin_lng, dest_lat, dest_lng, mode
+            ),
+            mode=mode,
+        )

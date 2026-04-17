@@ -33,6 +33,9 @@ def compute_match_score(
 	concept_ids: set[int],
 	purpose_ids: set[int],
 	amenity_ids: set[int],
+	place_concept_ids: set[int],
+	place_purpose_ids: set[int],
+	place_amenity_ids: set[int],
 ) -> float:
 	"""
 	Tính điểm match_score trong khoảng [0..1] để xếp hạng kết quả.
@@ -46,20 +49,13 @@ def compute_match_score(
 
 	# --- Điểm overlap tag (0..1) ---
 	def _overlap(selected: set[int], actual: set[int]) -> float:
-		# Nếu user không chọn filter nhóm này thì coi như “không ảnh hưởng”.
-		if not selected:
-			return 0.0
-		if not actual:
+		if not selected or not actual:
 			return 0.0
 		return len(selected & actual) / len(selected)
 
-	place_concepts = {c.id for c in place.concepts}
-	place_purposes = {p.id for p in place.purposes}
-	place_amenities = {a.id for a in place.amenities}
-
-	concept_score = _overlap(concept_ids, place_concepts)
-	purpose_score = _overlap(purpose_ids, place_purposes)
-	amenity_score = _overlap(amenity_ids, place_amenities)
+	concept_score = _overlap(concept_ids, place_concept_ids)
+	purpose_score = _overlap(purpose_ids, place_purpose_ids)
+	amenity_score = _overlap(amenity_ids, place_amenity_ids)
 
 	# --- Điểm text (0..1) ---
 	text_score = 0.0
@@ -73,21 +69,24 @@ def compute_match_score(
 			elif q in desc:
 				text_score = 0.5
 
-	# Weight: có thể chỉnh theo ý bạn
-	# - Concepts và Purposes thường là tín hiệu mạnh.
-	# - Amenities hữu ích nhưng thường kém quan trọng hơn.
-	# - Text chỉ để boost nhẹ.
-	w_concept = 0.35
-	w_purpose = 0.35
-	w_amenity = 0.2
-	w_text = 0.1
+	# Dynamically normalise weights to only the groups the user selected
+	# (plus text when a query is provided). Unselected groups are excluded
+	# so the maximum achievable score is always 1.0.
+	raw_weights: list[tuple[float, float]] = []
+	if concept_ids:
+		raw_weights.append((0.35, concept_score))
+	if purpose_ids:
+		raw_weights.append((0.35, purpose_score))
+	if amenity_ids:
+		raw_weights.append((0.2, amenity_score))
+	if query and query.strip():
+		raw_weights.append((0.1, text_score))
 
-	score = (
-		w_concept * concept_score
-		+ w_purpose * purpose_score
-		+ w_amenity * amenity_score
-		+ w_text * text_score
-	)
+	if not raw_weights:
+		return 0.0
+
+	total_w = sum(w for w, _ in raw_weights)
+	score = sum((w / total_w) * s for w, s in raw_weights)
 
 	# Chặn trong [0..1]
 	return max(0.0, min(1.0, score))
@@ -131,14 +130,19 @@ def search_places(
 
 	results: list[dict] = []
 	for place in places:
+		# Compute tag-id sets once per place and reuse for filtering + scoring.
+		place_concept_ids = {c.id for c in place.concepts}
+		place_purpose_ids = {p.id for p in place.purposes}
+		place_amenity_ids = {a.id for a in place.amenities}
+
 		# Lọc theo tag (quy tắc ANY):
 		# - Nếu user có chọn tag trong 1 nhóm, place phải khớp *ít nhất 1* tag trong nhóm đó.
 		# - Cách này làm kết quả “chặt” hơn (thường đúng kỳ vọng khi bật filter).
-		if selected_concepts and not ({c.id for c in place.concepts} & selected_concepts):
+		if selected_concepts and not (place_concept_ids & selected_concepts):
 			continue
-		if selected_purposes and not ({p.id for p in place.purposes} & selected_purposes):
+		if selected_purposes and not (place_purpose_ids & selected_purposes):
 			continue
-		if selected_amenities and not ({a.id for a in place.amenities} & selected_amenities):
+		if selected_amenities and not (place_amenity_ids & selected_amenities):
 			continue
 
 		# Tính khoảng cách (nếu user có gửi location)
@@ -156,6 +160,9 @@ def search_places(
 			concept_ids=selected_concepts,
 			purpose_ids=selected_purposes,
 			amenity_ids=selected_amenities,
+			place_concept_ids=place_concept_ids,
+			place_purpose_ids=place_purpose_ids,
+			place_amenity_ids=place_amenity_ids,
 		)
 
 		results.append(

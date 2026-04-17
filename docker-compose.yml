@@ -30,9 +30,8 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    profiles: ["db"]
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-foodyssey}
       POSTGRES_USER: ${POSTGRES_USER:-foodyssey}
@@ -45,6 +44,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
 volumes:
   frontend_node_modules:
   postgres_data:
+

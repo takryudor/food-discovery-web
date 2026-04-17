@@ -1,16 +1,18 @@
 "use client"; // Bắt buộc phải có dòng này ở trên cùng
 
 import { useState, useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion"; // Lưu ý: Thường là 'framer-motion', hãy kiểm tra package.json của bạn
+import { AnimatePresence, motion } from "framer-motion";
 import { LanguageProvider } from "@/components/LanguageContext";
 import HomePage from "@/components/HomePage";
 import MapView from "@/components/MapView";
+import { RestaurantRecommendation } from "@/lib/types";
 
 type Screen = "home" | "map";
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("home");
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [aiRecommendations, setAiRecommendations] = useState<RestaurantRecommendation[]>([]);
 
   useEffect(() => {
     if (theme === "dark") {
@@ -45,6 +47,7 @@ export default function App() {
                 onStartJourney={handleStartJourney}
                 theme={theme}
                 onThemeChange={setTheme}
+                onAiRecommendations={setAiRecommendations}
               />
             </motion.div>
           )}
@@ -57,7 +60,12 @@ export default function App() {
               transition={{ duration: 0.3, ease: "easeInOut" }}
               className="w-full h-full"
             >
-              <MapView onBackHome={handleBackHome} />
+              <MapView
+                onBackHome={handleBackHome}
+                aiRecommendations={aiRecommendations}
+                theme={theme}
+                onThemeChange={setTheme}
+              />
             </motion.div>
           )}
         </AnimatePresence>

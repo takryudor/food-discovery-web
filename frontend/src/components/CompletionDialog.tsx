@@ -1,17 +1,29 @@
 import { motion } from "motion/react";
 import { CheckCircle, Sparkles } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
+import { useMemo } from "react";
 
 interface CompletionDialogProps {
   onGoHome: () => void;
   onContinue: () => void;
 }
 
+// Pre-generated random values for sparkles animation
+const SPARKLE_OFFSETS = [-45, -30, 10, 55, -20, 35, -50, 40];
+
 export default function CompletionDialog({
   onGoHome,
   onContinue,
 }: CompletionDialogProps) {
   const { t } = useLanguage();
+
+  const sparkles = useMemo(() => {
+    return [...Array(8)].map((_, i) => ({
+      key: i,
+      xOffset: SPARKLE_OFFSETS[i] || 0,
+      delay: i * 0.15,
+    }));
+  }, []);
 
   return (
     <>
@@ -55,19 +67,19 @@ export default function CompletionDialog({
 
           {/* Sparkles animation */}
           <div className="relative h-12">
-            {[...Array(8)].map((_, i) => (
+            {sparkles.map((sparkle) => (
               <motion.div
-                key={i}
+                key={sparkle.key}
                 initial={{ opacity: 0, y: 0 }}
                 animate={{
                   opacity: [0, 1, 0],
                   y: -60,
-                  x: (Math.random() - 0.5) * 120,
+                  x: sparkle.xOffset,
                   scale: [0.5, 1.2, 0.5],
                 }}
                 transition={{
                   duration: 2,
-                  delay: i * 0.15,
+                  delay: sparkle.delay,
                   repeat: Infinity,
                 }}
                 className="absolute left-1/2 top-0"
