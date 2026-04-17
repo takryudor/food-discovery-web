@@ -11,7 +11,7 @@ Run:
 from sqlalchemy import select
 from datetime import datetime
 
-from app.db.models import Amenity, Concept, Place, Purpose, User, Review
+from app.db.models import Amenity, Concept, Place, Purpose, User, Review, Ward
 from app.db.session import SessionLocal
 
 
@@ -78,6 +78,7 @@ def main() -> None:
 			concepts: list[Concept],
 			purposes: list[Purpose],
 			amenities: list[Amenity],
+			ward_code: str | None = None,
 		) -> Place:
 			p = session.scalar(select(Place).where(Place.name == name))
 			if p:
@@ -92,6 +93,10 @@ def main() -> None:
 			p.concepts.extend(concepts)
 			p.purposes.extend(purposes)
 			p.amenities.extend(amenities)
+			if ward_code:
+				ward = session.query(Ward).filter_by(code=ward_code).first()
+				if ward:
+					p.ward_id = ward.id
 			session.add(p)
 			return p
 
@@ -105,6 +110,7 @@ def main() -> None:
 			concepts=[concept_food],
 			purposes=[purpose_breakfast],
 			amenities=[amenity_parking],
+			ward_code="26734", # Phường Bến Nghé, Q.1
 		)
 		p2 = add_place(
 			name="Bánh mì Góc Phố",
@@ -115,6 +121,7 @@ def main() -> None:
 			concepts=[concept_food],
 			purposes=[purpose_breakfast],
 			amenities=[amenity_wifi],
+			ward_code="27082", # Mượn tạm Phường Tân Phong, Q.7 cho demo
 		)
 		p3 = add_place(
 			name="Cafe Sân Thượng",
@@ -125,6 +132,7 @@ def main() -> None:
 			concepts=[concept_coffee],
 			purposes=[purpose_chill],
 			amenities=[amenity_wifi, amenity_parking],
+			ward_code="26839", # Phường 25, Q.Bình Thạnh
 		)
 
 		session.flush()

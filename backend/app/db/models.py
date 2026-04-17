@@ -41,6 +41,43 @@ place_budget_ranges = Table(
 )
 
 
+class Province(Base):
+	__tablename__ = "provinces"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+	name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+	slug: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+	code: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
+
+	districts: Mapped[list[District]] = relationship(back_populates="province", cascade="all, delete-orphan")
+
+
+class District(Base):
+	__tablename__ = "districts"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+	province_id: Mapped[int] = mapped_column(ForeignKey("provinces.id", ondelete="CASCADE"), index=True)
+	name: Mapped[str] = mapped_column(String(255), index=True)
+	slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
+	code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+	province: Mapped[Province] = relationship(back_populates="districts")
+	wards: Mapped[list[Ward]] = relationship(back_populates="district", cascade="all, delete-orphan")
+
+
+class Ward(Base):
+	__tablename__ = "wards"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+	district_id: Mapped[int] = mapped_column(ForeignKey("districts.id", ondelete="CASCADE"), index=True)
+	name: Mapped[str] = mapped_column(String(255), index=True)
+	slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
+	code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+	district: Mapped[District] = relationship(back_populates="wards")
+	places: Mapped[list[Place]] = relationship(back_populates="ward")
+
+
 class User(Base):
 	__tablename__ = "users"
 
@@ -66,7 +103,11 @@ class Place(Base):
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 	name: Mapped[str] = mapped_column(String(255), index=True)
 	description: Mapped[str | None] = mapped_column(Text, nullable=True)
-	address: Mapped[str | None] = mapped_column(String(512), nullable=True)
+	
+	# Liên kết địa chỉ có cấu trúc
+	ward_id: Mapped[int | None] = mapped_column(ForeignKey("wards.id"), nullable=True, index=True)
+	address: Mapped[str | None] = mapped_column(String(512), nullable=True) # Số nhà, tên đường
+	
 	latitude: Mapped[float] = mapped_column(Float)
 	longitude: Mapped[float] = mapped_column(Float)
 
@@ -99,6 +140,7 @@ class Place(Base):
 		lazy="selectin",
 	)
 
+	ward: Mapped[Ward | None] = relationship(back_populates="places")
 	reviews: Mapped[list[Review]] = relationship(back_populates="place", cascade="all, delete-orphan")
 	activities: Mapped[list[UserActivity]] = relationship(back_populates="place", cascade="all, delete-orphan")
 
