@@ -47,6 +47,7 @@ Thumbs.db
 .idea/
 *.swp
 .claude
+.gemini/
 
 # Build
 .cache/

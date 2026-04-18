@@ -18,6 +18,12 @@ router.include_router(ai_router)
 
 @router.get("/health", tags=["health"])
 def health_check() -> dict[str, str]:
+	"""
+	Health check endpoint to verify backend status.
+
+	Returns:
+		dict[str, str]: Status status, application name, and running environment.
+	"""
 	return {
 		"status": "ok",
 		"app_name": settings.app_name,
