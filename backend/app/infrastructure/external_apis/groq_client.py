@@ -20,37 +20,36 @@ class GroqClient:
         else:
             self.client = None
 
-    def get_restaurant_recommendations(self, prompt: str) -> list[dict]:
+    def get_restaurant_recommendations(self, prompt: str, context: str = "") -> list[dict]:
         """
-        Sends a prompt to Groq (llama3) asking for restaurant recommendations in JSON format.
-        If no API key is provided, returns mock data.
-
-        Args:
-            prompt (str): The user's input/query for restaurant recommendations.
-
-        Returns:
-            list[dict]: A list of dictionaries, each containing 'name', 'address', and 'reason'.
+        Sends a prompt to Groq (llama3) asking for restaurant recommendations.
+        The AI focuses on reasoning and selecting the correct ID from the provided context.
         """
         if not self.client:
             return [
                 {
-                    "name": "Phở Gia Truyền Bát Đàn (Mock)",
-                    "address": "49 Bát Đàn, Hoàn Kiếm, Hà Nội",
-                    "reason": "Phở bò ngon, đậm vị truyền thống, là địa chỉ quen thuộc."
+                    "restaurant_id": 1,
+                    "reason": "Phở bò ngon, đậm vị truyền thống. Người dùng khen: 'Nước dùng thanh, thịt mềm'."
                 },
                 {
-                    "name": "Quán Phở Thìn Lò Đúc (Mock)",
-                    "address": "13 Lò Đúc, Hai Bà Trưng, Hà Nội",
-                    "reason": "Nổi tiếng với phở bò tái lăn nhiều hành."
+                    "restaurant_id": 2,
+                    "reason": "Nổi tiếng với phở bò tái lăn. Đánh giá: 'Thơm mùi gừng, hành, rất đặc trưng'."
                 }
             ]
 
         system_prompt = (
-            "You are a helpful AI food recommendation assistant. "
-            "Based on the user's message, recommend some restaurants. "
-            "Respond ONLY with a JSON array containing objects with keys: "
-            "'name', 'address', and 'reason'. Do not use markdown blocks like ```json. "
-            "Return only the raw JSON array, nothing else."
+            "You are a helpful AI food recommendation assistant for 'Foodyssey' app. "
+            "You are provided with two types of context:\n"
+            "1. --- DANH SÁCH NHÀ HÀNG HIỆN CÓ ---: This is the source of truth for restaurant existence and IDs.\n"
+            "2. --- CÁC ĐÁNH GIÁ LIÊN QUAN ---: This provides sentiment and specific details about the dishes and service.\n\n"
+            f"CONTEXT FROM DATABASE:\n{context}\n\n"
+            "INSTRUCTIONS:\n"
+            "1. Recommend maximum 3 restaurants based on the user's query.\n"
+            "2. You MUST select restaurants from the 'DANH SÁCH NHÀ HÀNG HIỆN CÓ' using their 'Restaurant ID'.\n"
+            "3. Use the 'CÁC ĐÁNH GIÁ LIÊN QUAN' to write a compelling 'reason' for each recommendation.\n"
+            "4. If no specific reviews match, use the restaurant's general information to justify.\n"
+            "5. Respond ONLY with a JSON array of objects with keys: 'restaurant_id' and 'reason'.\n"
+            "6. Do not use markdown blocks. Return only raw JSON array."
         )
 
         chat_completion = self.client.chat.completions.create(

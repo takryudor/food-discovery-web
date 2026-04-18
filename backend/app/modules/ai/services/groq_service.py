@@ -1,5 +1,9 @@
+from sqlalchemy.orm import Session
 from app.infrastructure.external_apis.groq_client import GroqClient
 from app.modules.ai.schemas import ChatBoxRequest, ChatBoxResponse, RestaurantRecommendation
+from app.services.review_service import get_relevant_reviews
+from app.services.search_service import search_places
+from app.db.models import Place
 
 
 class GroqService:
@@ -12,27 +16,53 @@ class GroqService:
         """
         self.client = GroqClient()
 
-    def process_chat(self, request: ChatBoxRequest) -> ChatBoxResponse:
+    def process_chat(self, request: ChatBoxRequest, db: Session) -> ChatBoxResponse:
         """
-        Processes the incoming chat request, fetches recommendations from Groq API, 
-        and maps them to strongly typed Pydantic models.
-
-        Args:
-            request (ChatBoxRequest): The incoming request payload containing the user's message.
-
-        Returns:
-            ChatBoxResponse: A structured response containing a list of RestaurantRecommendation objects.
+        Processes the incoming chat request using a Hybrid Retrieval approach:
+        1. Search for matching places based on keywords (Name, Location, Category).
+        2. Search for relevant reviews based on sentiment/query.
+        3. Send rich context to AI and enrich the final response.
         """
-        recommendation_dicts = self.client.get_restaurant_recommendations(request.message)
+        # Step 1: Lấy danh sách quán tiềm năng dựa trên từ khóa (Vị trí, tên...)
+        candidate_places = search_places(
+            db=db,
+            query=request.message,
+            location=None,
+            radius_km=None,
+            concept_ids=[],
+            purpose_ids=[],
+            amenity_ids=[]
+        )
+        places_context = "\n".join([f"[Restaurant ID: {p['id']}] {p['name']} - Địa chỉ: {p['address']}" for p in candidate_places[:10]])
+
+        # Step 2: Lấy các đánh giá liên quan
+        reviews = get_relevant_reviews(db, request.message, limit=10)
+        reviews_context = "\n".join(reviews) if reviews else "Không có đánh giá đặc thù."
+
+        # Step 3: Tổng hợp ngữ cảnh
+        full_context = (
+            f"--- DANH SÁCH NHÀ HÀNG HIỆN CÓ ---\n{places_context}\n\n"
+            f"--- CÁC ĐÁNH GIÁ LIÊN QUAN ---\n{reviews_context}"
+        )
+
+        # Step 4: Gửi cho AI để chọn ID và viết lý do
+        ai_recommendations = self.client.get_restaurant_recommendations(request.message, context=full_context)
 
         recommendations = []
-        for rec in recommendation_dicts:
-            recommendations.append(
-                RestaurantRecommendation(
-                    name=rec.get("name", "Unknown Restaurant"),
-                    address=rec.get("address", "Unknown Address"),
-                    reason=rec.get("reason", "")
-                )
-            )
+        for rec in ai_recommendations:
+            res_id = rec.get("restaurant_id")
+            reason = rec.get("reason", "")
+            
+            if res_id:
+                # Step 5: Đối soát dữ liệu chính xác từ DB
+                place = db.query(Place).filter(Place.id == res_id).first()
+                if place:
+                    recommendations.append(
+                        RestaurantRecommendation(
+                            name=place.name,
+                            address=place.address or "Địa chỉ đang cập nhật",
+                            reason=reason
+                        )
+                    )
 
         return ChatBoxResponse(recommendations=recommendations)
