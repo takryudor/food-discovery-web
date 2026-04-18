@@ -90,8 +90,21 @@ export async function sendChatboxMessage(
       await handleApiError(response);
     }
 
-    const data: ChatBoxResponse = await response.json();
-    return data;
+    const data = await response.json();
+
+    if (Array.isArray(data)) {
+      return { recommendations: data };
+    }
+
+    if (data && Array.isArray(data.recommendations)) {
+      return data as ChatBoxResponse;
+    }
+
+    if (data && Array.isArray(data.items)) {
+      return { recommendations: data.items };
+    }
+
+    return { recommendations: [] };
   } catch (error) {
     if ((error as ApiError).status) {
       throw error;

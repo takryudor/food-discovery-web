@@ -4,6 +4,7 @@ export interface RestaurantRecommendation {
   name: string;
   address: string;
   reason: string;
+  restaurant_id?: number; // ID trong DB để sử dụng nếu cần
 }
 
 export interface ChatBoxRequest {
@@ -12,6 +13,7 @@ export interface ChatBoxRequest {
 
 export interface ChatBoxResponse {
   recommendations: RestaurantRecommendation[];
+  message?: string; // Thông báo khi không đủ dữ liệu hoặc ngoài phạm vi
 }
 
 export interface ApiError {

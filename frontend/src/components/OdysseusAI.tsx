@@ -98,15 +98,24 @@ export default function OdysseusAI({
     try {
       const response = await sendChatboxMessage({ message: text });
       const list = response.recommendations ?? [];
+      const notificationMessage = response.message;
+      
+      // Xác định text chính cho AI message
+      let aiText = "";
+      if (notificationMessage) {
+        aiText = notificationMessage;
+      } else if (list.length > 0) {
+        aiText = `${t("aiSuggestingRestaurants").replace("...", "")} ${list.length} ${t("places")}:`;
+      } else {
+        aiText = t("aiNoResult");
+      }
+      
       const aiMsg: ChatMessage = {
         id: Date.now() + 1,
         role: "ai",
-        text:
-          list.length > 0
-            ? `${t("aiSuggestingRestaurants").replace("...", "")} ${list.length} ${t("places")}:`
-            : t("aiNoResult"),
+        text: aiText,
         beRecommendations: list,
-        type: "restaurants",
+        type: list.length > 0 ? "restaurants" : "text",
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
@@ -138,12 +147,24 @@ export default function OdysseusAI({
           "Người dùng vừa gửi ảnh (hệ thống chưa phân tích nội dung ảnh). Hãy gợi ý danh sách nhà hàng/quán ăn phù hợp tại TP. Hồ Chí Minh.",
       });
       const list = response.recommendations ?? [];
+      const notificationMessage = response.message;
+      
+      // Xác định text chính cho AI message
+      let aiText = "";
+      if (notificationMessage) {
+        aiText = notificationMessage;
+      } else if (list.length > 0) {
+        aiText = t("aiImageFood");
+      } else {
+        aiText = t("aiNoResult");
+      }
+      
       const aiMsg: ChatMessage = {
         id: Date.now() + 1,
         role: "ai",
-        text: list.length > 0 ? t("aiImageFood") : t("aiNoResult"),
+        text: aiText,
         beRecommendations: list,
-        type: "restaurants",
+        type: list.length > 0 ? "restaurants" : "text",
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
