@@ -43,7 +43,7 @@ def main() -> None:
 		user_nam = session.scalar(select(User).where(User.email == "nam.tester@example.com"))
 		if not user_nam:
 			user_nam = User(
-				firebase_uid="demo_user_nam_123",
+				supabase_id="demo_user_nam_123",
 				email="nam.tester@example.com",
 				display_name="Nam Tester",
 				avatar_url="https://api.dicebear.com/7.x/avataaars/svg?seed=Nam",
@@ -54,7 +54,7 @@ def main() -> None:
 		user_phong = session.scalar(select(User).where(User.email == "phong.geo@example.com"))
 		if not user_phong:
 			user_phong = User(
-				firebase_uid="demo_user_phong_456",
+				supabase_id="demo_user_phong_456",
 				email="phong.geo@example.com",
 				display_name="Phong Geo",
 				avatar_url="https://api.dicebear.com/7.x/avataaars/svg?seed=Phong",

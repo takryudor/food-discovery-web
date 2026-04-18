@@ -2,7 +2,7 @@ services:
   frontend:
     image: node:20-alpine
     working_dir: /workspace/frontend
-    command: sh -c "npm ci && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0 --port 3000"
     ports:
       - "3000:3000"
     volumes:
@@ -10,47 +10,24 @@ services:
       - frontend_node_modules:/workspace/frontend/node_modules
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     working_dir: /workspace
+    # We use - --reload for dev so it picks up code changes
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/workspace
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql+psycopg://foodyssey:foodyssey@postgres:5432/foodyssey
-      - GROQ_API_KEY=${GROQ_API_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - "5433:5432"
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-foodyssey}
-      POSTGRES_USER: ${POSTGRES_USER:-foodyssey}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foodyssey}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-foodyssey} -d ${POSTGRES_DB:-foodyssey}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  adminer:
-    image: adminer
-    ports:
-      - "8081:8080"
-    depends_on:
-      - postgres
+      - APP_ENV=development
 
 volumes:
   frontend_node_modules:
-  postgres_data:
