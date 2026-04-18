@@ -1,9 +1,10 @@
 # FoOdyssey Setup Guide (Linux, macOS, Windows)
 
-This guide is for the current repo state:
+This guide matches the current workflow in this repository:
 
-- Frontend is active and moved to `frontend/src/app`
-- Backend is scaffolded as directory/module skeleton only (no API implementation yet)
+- Frontend runs with Next.js in `frontend/src/app`
+- Backend runs with FastAPI and serves Swagger docs
+- PostgreSQL is included in Docker Compose for local development
 - Redis is deferred until after MVP
 
 ## 1) Prerequisites
@@ -59,16 +60,52 @@ If `docker-compose` fails with command not found, use `docker compose` (new synt
 
 ## 3) Repo Setup
 
-From repo root:
+From repo root, create environment files:
+
+Linux/macOS:
 
 ```bash
 cp .env.example .env
 cp frontend/.env.example frontend/.env
 ```
 
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item frontend/.env.example frontend/.env
+```
+
 Edit `frontend/.env` if backend API URL is not `http://localhost:8000`.
 
-## 4) Frontend Run Options
+## 4) Quick Start (Recommended for all OS)
+
+From repo root:
+
+```bash
+docker compose up --build
+```
+
+Open:
+
+- Frontend: http://localhost:3000
+- Backend Swagger: http://localhost:8000/docs
+- Backend ReDoc: http://localhost:8000/redoc
+- Health check: http://localhost:8000/api/v1/health
+
+Stop services:
+
+```bash
+docker compose down
+```
+
+Reset services and remove volumes (including DB data):
+
+```bash
+docker compose down -v
+```
+
+## 5) Alternative Run Options
 
 ### Option A: Run frontend with local Node (fastest for FE dev)
 
@@ -90,51 +127,80 @@ docker compose up frontend
 
 Open: http://localhost:3000
 
-## 5) Optional Local PostgreSQL (for future backend work)
+### Option C: Run backend only with Docker Compose
 
-PostgreSQL service is included but disabled by default via profile `db`.
-
-Start DB only:
+From repo root:
 
 ```bash
-docker compose --profile db up -d postgres
+docker compose up --build backend postgres
 ```
 
-Default connection values:
+Open backend docs:
 
-- Host: localhost
-- Port: 5432
-- Database: foodyssey
-- User: foodyssey
-- Password: foodyssey
+- http://localhost:8000/docs
 
-Stop all compose services:
+### Option D: Run backend locally (without Docker)
 
-```bash
-docker compose down
-```
-
-Stop and remove volumes (including DB data):
-
-```bash
-docker compose down -v
-```
-
-## 6) Backend Run + Swagger
-
-Backend now has a minimal FastAPI bootstrap, so you can open Swagger without waiting for business logic.
-
-Run it locally from repo root:
+From repo root:
 
 ```bash
 uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Open:
+Open backend docs:
 
 - http://localhost:8000/docs
-- http://localhost:8000/redoc
-- http://localhost:8000/api/v1/health
+
+## 6) PostgreSQL for local dev
+
+Start DB only:
+
+```bash
+docker compose up -d postgres
+```
+
+Default connection values, use in Adminer as well:
+
+- Host: localhost
+- Port: 5432
+- Server: postgre
+- Database: foodyssey
+- User: foodyssey
+- Password: foodyssey
+
+## 7) Development Workflow: run <-> edit code <-> verify
+
+Recommended loop:
+
+1. Start services:
+
+```bash
+docker compose up --build
+```
+
+2. Edit code:
+
+- Frontend code in `frontend/src`
+- Backend code in `backend/app`
+
+3. Verify quickly after each edit:
+
+- Frontend page: http://localhost:3000
+- Backend health: http://localhost:8000/api/v1/health
+- Backend docs: http://localhost:8000/docs
+
+4. Run backend tests when changing backend logic:
+
+```bash
+cd backend
+pytest
+```
+
+5. Stop when done:
+
+```bash
+docker compose down
+```
 
 Current backend scaffold is still mostly structure-only beyond the bootstrap:
 
@@ -143,7 +209,7 @@ Current backend scaffold is still mostly structure-only beyond the bootstrap:
 - Each module keeps `models.py` and `schemas.py` as single files per module.
 - `backend/tests/unit` and `backend/tests/integration` are placeholder test files.
 
-## 7) Frontend Structure (now)
+## 8) Frontend Structure (now)
 
 ```text
 frontend/
@@ -159,9 +225,10 @@ Main page entry is now:
 
 - `frontend/src/app/page.tsx`
 
-## 8) Quick Troubleshooting
+## 9) Quick Troubleshooting
 
 - Port 3000 already in use: stop old process or change exposed port in `docker-compose.yml`.
 - Docker permission denied on Linux: ensure user is in `docker` group and re-login.
 - Node modules conflict in container: keep `frontend_node_modules` named volume as-is.
 - FE cannot call backend: check `NEXT_PUBLIC_API_BASE_URL` in `frontend/.env`.
+- On Windows, prefer PowerShell or WSL; if file permission/watch issues appear, run Docker Desktop with WSL2 integration enabled.

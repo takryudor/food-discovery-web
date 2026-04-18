@@ -10,7 +10,7 @@ router = APIRouter(
 @router.post("/chatbox", response_model=ChatBoxResponse)
 def chatbox(request: ChatBoxRequest) -> ChatBoxResponse:
     """
-    Takes user text input and prompts an AI model (or returns mock data)
+    Takes user text input and prompts Groq AI (or returns mock data)
     to recommend a list of restaurants.
 
     Args:

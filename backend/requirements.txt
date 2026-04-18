@@ -6,8 +6,9 @@ SQLAlchemy==2.0.49
 psycopg[binary]==3.2.13
 uvicorn==0.44.0
 
-groq
+groq>=0.22.0
 
 # Test dependencies (placeholder tests exist in backend/tests)
 pytest==8.4.2
-httpx==0.28.1
+# groq 0.11.0 is not compatible with httpx 0.28.x (proxies arg removed)
+httpx==0.27.2

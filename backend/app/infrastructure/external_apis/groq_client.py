@@ -61,9 +61,19 @@ class GroqClient:
             model="llama-3.1-8b-instant",
         )
 
-        raw = chat_completion.choices[0].message.content
-
         import logging
+
+        choices = getattr(chat_completion, "choices", None)
+        if not choices:
+            logging.warning("[GroqClient] Empty or missing choices in Groq response")
+            return []
+
+        first_choice = choices[0]
+        message = getattr(first_choice, "message", None)
+        raw = getattr(message, "content", None) if message is not None else None
+        if raw is None:
+            logging.warning("[GroqClient] Missing message content in Groq response")
+            return []
         logging.warning(f"[GroqClient] raw response: {raw}")
 
         try:
@@ -71,14 +81,15 @@ class GroqClient:
             # Groq with json_object mode always returns a dict wrapper
             if isinstance(parsed, list):
                 return parsed
-            # Try common wrapper keys
-            for key in ("recommendations", "restaurants", "results", "data", "items"):
-                if key in parsed and isinstance(parsed[key], list):
-                    return parsed[key]
-            # Fallback: return the first list value found
-            for val in parsed.values():
-                if isinstance(val, list):
-                    return val
+            if isinstance(parsed, dict):
+                # Try common wrapper keys
+                for key in ("recommendations", "restaurants", "results", "data", "items"):
+                    if key in parsed and isinstance(parsed[key], list):
+                        return parsed[key]
+                # Fallback: return the first list value found
+                for val in parsed.values():
+                    if isinstance(val, list):
+                        return val
             logging.warning(f"[GroqClient] Could not extract list from: {parsed}")
             return []
         except json.JSONDecodeError as e:
