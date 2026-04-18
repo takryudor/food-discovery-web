@@ -47,6 +47,8 @@ export interface SearchRequest {
   purpose_ids?: number[];
   amenity_ids?: number[];
   budget_range_ids?: number[];
+  /** "smart" (default): Postgres FTS + ts_rank; "default": ILIKE + sort by id */
+  ranking?: "default" | "smart";
   limit?: number;
   offset?: number;
 }
