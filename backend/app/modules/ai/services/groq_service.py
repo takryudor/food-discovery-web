@@ -53,8 +53,8 @@ class GroqService:
             res_id = rec.get("restaurant_id")
             reason = rec.get("reason", "")
             
-            if res_id:
-                # Step 5: Đối soát dữ liệu chính xác từ DB
+            if res_id and res_id > 0:
+                # Trường hợp: Quán có trong Database
                 place = db.query(Place).filter(Place.id == res_id).first()
                 if place:
                     recommendations.append(
@@ -64,5 +64,16 @@ class GroqService:
                             reason=reason
                         )
                     )
+            else:
+                # Trường hợp: AI tự gợi ý quán ngoài Database
+                name = rec.get("name", "Unknown Restaurant")
+                address = rec.get("address", "Địa chỉ đang cập nhật")
+                recommendations.append(
+                    RestaurantRecommendation(
+                        name=name,
+                        address=address,
+                        reason=reason
+                    )
+                )
 
         return ChatBoxResponse(recommendations=recommendations)

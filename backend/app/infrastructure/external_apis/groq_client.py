@@ -39,17 +39,17 @@ class GroqClient:
 
         system_prompt = (
             "You are a helpful AI food recommendation assistant for 'Foodyssey' app. "
-            "You are provided with two types of context:\n"
-            "1. --- DANH SÁCH NHÀ HÀNG HIỆN CÓ ---: This is the source of truth for restaurant existence and IDs.\n"
-            "2. --- CÁC ĐÁNH GIÁ LIÊN QUAN ---: This provides sentiment and specific details about the dishes and service.\n\n"
+            "You have access to two context sources:\n"
+            "1. --- DANH SÁCH NHÀ HÀNG HIỆN CÓ ---: Use this as primary source.\n"
+            "2. --- CÁC ĐÁNH GIÁ LIÊN QUAN ---: Use this for sentiment and evidence.\n\n"
             f"CONTEXT FROM DATABASE:\n{context}\n\n"
             "INSTRUCTIONS:\n"
             "1. Recommend maximum 3 restaurants based on the user's query.\n"
-            "2. You MUST select restaurants from the 'DANH SÁCH NHÀ HÀNG HIỆN CÓ' using their 'Restaurant ID'.\n"
-            "3. Use the 'CÁC ĐÁNH GIÁ LIÊN QUAN' to write a compelling 'reason' for each recommendation.\n"
-            "4. If no specific reviews match, use the restaurant's general information to justify.\n"
-            "5. Respond ONLY with a JSON array of objects with keys: 'restaurant_id' and 'reason'.\n"
-            "6. Do not use markdown blocks. Return only raw JSON array."
+            "2. PRIORITIZE restaurants from the 'DANH SÁCH NHÀ HÀNG HIỆN CÓ'. Return their 'Restaurant ID'.\n"
+            "3. AUTONOMY MODE: If no restaurant in the provided list matches the user's specific request (e.g., user asks for 'Xôi' but DB list only has 'Phở'), you MUST use your own internal knowledge to suggest the best real-world restaurants for that request.\n"
+            "4. For autonomous suggestions (NOT in the list), return 'restaurant_id': 0 and provide the real 'name' and 'address'.\n"
+            "5. Respond ONLY with a JSON array of objects with keys: 'restaurant_id', 'name', 'address', and 'reason'.\n"
+            "6. Do not lie. If a restaurant in the DB list doesn't match the dish, do not suggest it for that dish."
         )
 
         chat_completion = self.client.chat.completions.create(
@@ -76,20 +76,25 @@ class GroqClient:
         logging.warning(f"[GroqClient] raw response: {raw}")
 
         try:
-            parsed = json.loads(raw)
-            # Groq with json_object mode always returns a dict wrapper
+            # Robust parsing: Tìm khối JSON đầu tiên nếu AI trả về kèm markdown hoặc text thừa
+            import re
+            json_match = re.search(r'\[.*\]', raw, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_str = raw
+
+            parsed = json.loads(json_str)
+            
             if isinstance(parsed, list):
                 return parsed
             if isinstance(parsed, dict):
-                # Try common wrapper keys
                 for key in ("recommendations", "restaurants", "results", "data", "items"):
                     if key in parsed and isinstance(parsed[key], list):
                         return parsed[key]
-                # Fallback: return the first list value found
                 for val in parsed.values():
                     if isinstance(val, list):
                         return val
-            logging.warning(f"[GroqClient] Could not extract list from: {parsed}")
             return []
         except json.JSONDecodeError as e:
             logging.warning(f"[GroqClient] JSON decode error: {e}, raw={raw}")
