@@ -1,0 +1,29 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* Custom Leaflet tooltip styles */
+.restaurant-tooltip {
+  background: white !important;
+  border: none !important;
+  border-radius: 16px !important;
+  padding: 12px 16px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12) !important;
+  opacity: 1 !important;
+}
+.restaurant-tooltip::before {
+  border-top-color: white !important;
+}
+.custom-tooltip {
+  background: white !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 8px 14px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1) !important;
+}
+.custom-tooltip::before {
+  border-top-color: white !important;
+}
+.leaflet-container {
+  font-family: 'Inter', sans-serif;
+}

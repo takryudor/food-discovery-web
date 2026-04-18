@@ -213,8 +213,6 @@ export function searchFulltext(query: string, limit: number = 8): RestaurantSugg
   }));
 }
 
-import { RestaurantDetail } from "./types";
-
 // Lấy chi tiết restaurant
 export function getMockRestaurantDetail(id: number): RestaurantDetail | undefined {
   const r = RESTAURANTS_DATA.find(r => r.id === id);
