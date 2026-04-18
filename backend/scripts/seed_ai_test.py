@@ -36,7 +36,7 @@ def main() -> None:
         admin = session.scalar(select(User).where(User.email == "admin@foodyssey.com"))
         if not admin:
             admin = User(
-                firebase_uid="admin_uid_ai_test",
+                supabase_id="admin_uid_ai_test",
                 email="admin@foodyssey.com",
                 display_name="Hệ thống AI Tester",
                 avatar_url="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin"
