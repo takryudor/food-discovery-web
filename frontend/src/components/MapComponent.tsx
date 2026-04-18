@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MutableRefObject } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { Icon, LatLngTuple } from "leaflet";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Utensils, Loader2, Navigation, AlertCircle, Star, Phone, Clock, X } from "lucide-react";
+import {
+  MapPin,
+  Utensils,
+  Loader2,
+  AlertCircle,
+  Star,
+  Phone,
+  Clock,
+  X,
+} from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { UserLocation, GeoJSONFeature, RestaurantDetail } from "@/lib/types";
 import { getRestaurantDetail } from "@/lib/api";
@@ -15,13 +24,15 @@ import L from "leaflet";
 
 // Create custom icons
 const userLocationIcon = new Icon({
-  iconUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10' fill='%233b82f6' fill-opacity='0.2'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%233b82f6'/%3E%3C/svg%3E",
+  iconUrl:
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10' fill='%233b82f6' fill-opacity='0.2'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%233b82f6'/%3E%3C/svg%3E",
   iconSize: [32, 32],
   iconAnchor: [16, 16],
 });
 
 const restaurantIcon = new Icon({
-  iconUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23f97316'/%3E%3Cpath d='M7 12h10M12 7v10'/%3E%3C/svg%3E",
+  iconUrl:
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23f97316'/%3E%3Cpath d='M7 12h10M12 7v10'/%3E%3C/svg%3E",
   iconSize: [36, 36],
   iconAnchor: [18, 18],
 });
@@ -32,15 +43,41 @@ interface MapComponentProps {
   selectedMarkerId: number | null;
   onMarkerClick: (feature: GeoJSONFeature) => void;
   isLoading: boolean;
+  /** When false, map view is not forced to follow `userLocation` (e.g. user is panning to pick a point). */
+  syncCenterToUser?: boolean;
+  hideUserMarker?: boolean;
+  mapLeafletRef?: MutableRefObject<L.Map | null>;
+}
+
+function MapInstanceExposer({
+  mapRef,
+}: {
+  mapRef: MutableRefObject<L.Map | null>;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    mapRef.current = map;
+    return () => {
+      mapRef.current = null;
+    };
+  }, [map, mapRef]);
+  return null;
 }
 
 // Component to update map center when user location changes
-function MapCenterUpdater({ center }: { center: LatLngTuple }) {
+function MapCenterUpdater({
+  center,
+  enabled,
+}: {
+  center: LatLngTuple;
+  enabled: boolean;
+}) {
   const map = useMap();
 
   useEffect(() => {
+    if (!enabled) return;
     map.setView(center, map.getZoom());
-  }, [center, map]);
+  }, [center, map, enabled]);
 
   return null;
 }
@@ -51,9 +88,13 @@ export default function MapComponent({
   selectedMarkerId,
   onMarkerClick,
   isLoading,
+  syncCenterToUser = true,
+  hideUserMarker = false,
+  mapLeafletRef,
 }: MapComponentProps) {
   const { t } = useLanguage();
-  const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantDetail | null>(null);
+  const [selectedRestaurant, setSelectedRestaurant] =
+    useState<RestaurantDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
@@ -61,14 +102,41 @@ export default function MapComponent({
 
   const handleMarkerClick = async (feature: GeoJSONFeature) => {
     onMarkerClick(feature);
-    setLoadingDetail(true);
     setDetailError(null);
+
+    if (feature.properties.is_ai_suggestion) {
+      setLoadingDetail(false);
+      const lat = feature.geometry.coordinates[1];
+      const lng = feature.geometry.coordinates[0];
+      setSelectedRestaurant({
+        id: feature.properties.id,
+        name: feature.properties.name,
+        description: feature.properties.cuisine ?? "",
+        address: feature.properties.address,
+        latitude: lat,
+        longitude: lng,
+        rating: feature.properties.rating,
+        phone: undefined,
+        open_hours: undefined,
+        price_range: feature.properties.price_hint,
+        cover_image:
+          "https://images.unsplash.com/photo-1555126634-323283e090fa?w=800",
+        concepts: [],
+        purposes: [],
+        amenities: [],
+      });
+      return;
+    }
+
+    setLoadingDetail(true);
     try {
       const detail = await getRestaurantDetail(feature.properties.id);
       setSelectedRestaurant(detail);
     } catch (error) {
       console.error("Failed to load restaurant detail:", error);
-      const errorMessage = (error as { message?: string }).message || "Không thể tải thông tin nhà hàng";
+      const errorMessage =
+        (error as { message?: string }).message ||
+        t("loadRestaurantError");
       setDetailError(errorMessage);
     } finally {
       setLoadingDetail(false);
@@ -81,6 +149,7 @@ export default function MapComponent({
         center={center}
         zoom={14}
         scrollWheelZoom={true}
+        zoomControl={false}
         className="w-full h-full"
         style={{ zIndex: 1 }}
       >
@@ -88,17 +157,17 @@ export default function MapComponent({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapCenterUpdater center={center} />
+        {mapLeafletRef ? <MapInstanceExposer mapRef={mapLeafletRef} /> : null}
+        <MapCenterUpdater center={center} enabled={syncCenterToUser} />
 
         {/* User location marker */}
-        <Marker
-          position={center}
-          icon={userLocationIcon}
-        >
-          <Popup>
-            <div className="text-sm font-medium">Vị trí của bạn</div>
-          </Popup>
-        </Marker>
+        {!hideUserMarker ? (
+          <Marker position={center} icon={userLocationIcon}>
+            <Popup>
+              <div className="text-sm font-medium">{t("yourLocation")}</div>
+            </Popup>
+          </Marker>
+        ) : null}
 
         {/* Restaurant markers */}
         {markers.map((feature) => {
@@ -125,18 +194,20 @@ export default function MapComponent({
                   <p className="text-sm text-gray-600 mb-2">
                     {feature.properties.address}
                   </p>
-                  {loadingDetail && selectedMarkerId === feature.properties.id && (
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Đang tải...
-                    </div>
-                  )}
-                  {detailError && selectedMarkerId === feature.properties.id && (
-                    <div className="flex items-center gap-2 text-sm text-red-500">
-                      <AlertCircle className="w-4 h-4" />
-                      {detailError}
-                    </div>
-                  )}
+                  {loadingDetail &&
+                    selectedMarkerId === feature.properties.id && (
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {t("loading")}
+                      </div>
+                    )}
+                  {detailError &&
+                    selectedMarkerId === feature.properties.id && (
+                      <div className="flex items-center gap-2 text-sm text-red-500">
+                        <AlertCircle className="w-4 h-4" />
+                        {detailError}
+                      </div>
+                    )}
                 </div>
               </Popup>
             </Marker>
@@ -167,34 +238,13 @@ export default function MapComponent({
                 </motion.div>
                 <MapPin className="w-5 h-5 text-orange-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
-              <p className="text-neutral-600 font-medium">Đang tải bản đồ...</p>
+              <p className="text-neutral-600 font-medium">{t("loadingMap")}</p>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Location indicator */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="absolute bottom-6 left-6 z-[500] bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-2xl px-4 py-3 shadow-lg border border-white/50 dark:border-neutral-700/50"
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-            <Navigation className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-neutral-800 dark:text-white">
-              Vị trí hiện tại
-            </p>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
-            </p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Restaurant detail sidebar */}
+      {/* Loading overlay */}
       <AnimatePresence>
         {selectedRestaurant && (
           <RestaurantDetailPanel
@@ -216,7 +266,10 @@ interface RestaurantDetailPanelProps {
   onClose: () => void;
 }
 
-function RestaurantDetailPanel({ restaurant, onClose }: RestaurantDetailPanelProps) {
+function RestaurantDetailPanel({
+  restaurant,
+  onClose,
+}: RestaurantDetailPanelProps) {
   const { t } = useLanguage();
   return (
     <>
@@ -242,7 +295,10 @@ function RestaurantDetailPanel({ restaurant, onClose }: RestaurantDetailPanelPro
           {/* Image Header with Gradient Overlay */}
           <div className="relative h-56 md:h-64">
             <img
-              src={restaurant.cover_image || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800"}
+              src={
+                restaurant.cover_image ||
+                "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800"
+              }
               alt={restaurant.name}
               className="w-full h-full object-cover"
             />
@@ -268,7 +324,9 @@ function RestaurantDetailPanel({ restaurant, onClose }: RestaurantDetailPanelPro
                 {restaurant.rating && (
                   <div className="flex items-center gap-1 bg-yellow-500/90 px-2 py-1 rounded-full">
                     <Star className="w-3 h-3 text-white fill-white" />
-                    <span className="text-white text-sm font-medium">{restaurant.rating}</span>
+                    <span className="text-white text-sm font-medium">
+                      {restaurant.rating}
+                    </span>
                   </div>
                 )}
                 {restaurant.concepts?.slice(0, 2).map((concept) => (
@@ -290,7 +348,9 @@ function RestaurantDetailPanel({ restaurant, onClose }: RestaurantDetailPanelPro
               <div className="bg-orange-50 rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600 text-sm">{t("price")}:</span>
-                  <span className="text-orange-600 font-bold text-lg">{restaurant.price_range}</span>
+                  <span className="text-orange-600 font-bold text-lg">
+                    {restaurant.price_range}
+                  </span>
                 </div>
               </div>
             )}
@@ -301,8 +361,12 @@ function RestaurantDetailPanel({ restaurant, onClose }: RestaurantDetailPanelPro
                 <MapPin className="w-5 h-5 text-orange-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-800 text-sm mb-1">{t("address")}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{restaurant.address}</p>
+                <h3 className="font-semibold text-gray-800 text-sm mb-1">
+                  {t("address")}
+                </h3>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  {restaurant.address}
+                </p>
               </div>
             </div>
 
@@ -313,7 +377,9 @@ function RestaurantDetailPanel({ restaurant, onClose }: RestaurantDetailPanelPro
                   <Phone className="w-5 h-5 text-orange-600" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-800 text-sm mb-1">{t("phone")}</h3>
+                  <h3 className="font-semibold text-gray-800 text-sm mb-1">
+                    {t("phone")}
+                  </h3>
                   <p className="text-gray-600 text-sm">{restaurant.phone}</p>
                 </div>
               </div>
@@ -326,8 +392,12 @@ function RestaurantDetailPanel({ restaurant, onClose }: RestaurantDetailPanelPro
                   <Clock className="w-5 h-5 text-orange-600" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-800 text-sm mb-1">{t("openingHours")}</h3>
-                  <p className="text-gray-600 text-sm">{restaurant.open_hours}</p>
+                  <h3 className="font-semibold text-gray-800 text-sm mb-1">
+                    {t("openingHours")}
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {restaurant.open_hours}
+                  </p>
                 </div>
               </div>
             )}
@@ -335,13 +405,17 @@ function RestaurantDetailPanel({ restaurant, onClose }: RestaurantDetailPanelPro
             {/* Description */}
             {restaurant.description && (
               <div className="pt-2">
-                <h3 className="font-semibold text-gray-800 text-sm mb-2">{t("description")}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{restaurant.description}</p>
+                <h3 className="font-semibold text-gray-800 text-sm mb-2">
+                  {t("description")}
+                </h3>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  {restaurant.description}
+                </p>
               </div>
             )}
 
             {/* Tags */}
-            {(restaurant.purposes?.length || restaurant.amenities?.length) ? (
+            {restaurant.purposes?.length || restaurant.amenities?.length ? (
               <div className="flex flex-wrap gap-2 pt-2">
                 {restaurant.purposes?.map((purpose) => (
                   <span

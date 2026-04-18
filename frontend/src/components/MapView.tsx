@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  lazy,
+  Suspense,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -11,10 +19,17 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Crosshair,
+  Check,
+  Plus,
+  Minus,
 } from "lucide-react";
+import L from "leaflet";
 import { useLanguage } from "./LanguageContext";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import SettingsDropdown from "./SettingsDropdown";
+import OdysseusAI from "./OdysseusAI";
+import type { SuggestedRestaurant } from "./OdysseusAI";
 import {
   getFiltersOptions,
   searchRestaurants,
@@ -28,6 +43,7 @@ import {
   SearchResult,
   GeoJSONFeature,
   RestaurantSuggestion,
+  type UserLocation,
 } from "@/lib/types";
 
 // Lazy load MapComponent to avoid SSR issues with Leaflet
@@ -51,7 +67,34 @@ export default function MapView({
   onThemeChange,
 }: MapViewProps) {
   const { t } = useLanguage();
-  const { location: userLocation, status: locationStatus } = useUserLocation();
+  const { location: gpsLocation, status: locationStatus } = useUserLocation();
+  const [manualLocation, setManualLocation] = useState<UserLocation | null>(
+    null,
+  );
+  const [isSettingLocation, setIsSettingLocation] = useState(false);
+  const mapLeafletRef = useRef<L.Map | null>(null);
+
+  const userLocation = manualLocation ?? gpsLocation;
+
+  const handleConfirmPickedLocation = useCallback(() => {
+    const map = mapLeafletRef.current;
+    if (!map) return;
+    const c = map.getCenter();
+    setManualLocation({ lat: c.lat, lng: c.lng });
+    setIsSettingLocation(false);
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    const map = mapLeafletRef.current;
+    if (!map) return;
+    map.zoomIn();
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    const map = mapLeafletRef.current;
+    if (!map) return;
+    map.zoomOut();
+  }, []);
 
   // Data states
   const [conceptsList, setConceptsList] = useState<Tag[]>([]);
@@ -60,21 +103,52 @@ export default function MapView({
   const [budgetRangesList, setBudgetRangesList] = useState<Tag[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [mapMarkers, setMapMarkers] = useState<GeoJSONFeature[]>([]);
+  const [odysseusMarkers, setOdysseusMarkers] = useState<GeoJSONFeature[]>([]);
   const [selectedMarkerId, setSelectedMarkerId] = useState<number | null>(null);
+
+  const markersForMap = useMemo(
+    () => [...mapMarkers, ...odysseusMarkers],
+    [mapMarkers, odysseusMarkers],
+  );
+
+  const handleOdysseusRestaurants = useCallback(
+    (rows: SuggestedRestaurant[]) => {
+      const mapped: GeoJSONFeature[] = rows.map((r) => ({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [r.lng, r.lat],
+        },
+        properties: {
+          id: 9_000_000 + (Math.abs(r.id) % 999_999),
+          name: r.name,
+          address: r.address,
+          is_ai_suggestion: true,
+          cuisine: r.cuisine,
+          rating: r.rating,
+          price_hint: r.price,
+        },
+      }));
+      setOdysseusMarkers(mapped);
+    },
+    [],
+  );
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedConcepts, setSelectedConcepts] = useState<number[]>([]);
   const [selectedPurposes, setSelectedPurposes] = useState<number[]>([]);
   const [selectedAmenities, setSelectedAmenities] = useState<number[]>([]);
-  const [selectedBudgetRanges, setSelectedBudgetRanges] = useState<number[]>([]);
+  const [selectedBudgetRanges, setSelectedBudgetRanges] = useState<number[]>(
+    [],
+  );
   const [radius, setRadius] = useState(5);
   const [numberOfPlaces, setNumberOfPlaces] = useState(10);
 
   // UI states
   const [showFilters, setShowFilters] = useState(true);
   const [showAiRecommendations, setShowAiRecommendations] = useState(
-    aiRecommendations.length > 0
+    aiRecommendations.length > 0,
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
@@ -84,7 +158,9 @@ export default function MapView({
   >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [useMockData, setUseMockData] = useState(getUseMockData());
-  const [mockSwitchMessage, setMockSwitchMessage] = useState<string | null>(null);
+  const [mockSwitchMessage, setMockSwitchMessage] = useState<string | null>(
+    null,
+  );
 
   const radiusOptions = [3, 5, 8, 10];
 
@@ -151,7 +227,9 @@ export default function MapView({
       const amenities = filters.amenities || [];
       const budgetRanges = filters.budget_ranges || [];
 
-      console.log(`[DEBUG] Loaded: ${concepts.length} concepts, ${purposes.length} purposes, ${amenities.length} amenities, ${budgetRanges.length} budget ranges`);
+      console.log(
+        `[DEBUG] Loaded: ${concepts.length} concepts, ${purposes.length} purposes, ${amenities.length} amenities, ${budgetRanges.length} budget ranges`,
+      );
 
       setConceptsList(concepts);
       setPurposesList(purposes);
@@ -159,7 +237,12 @@ export default function MapView({
       setBudgetRangesList(budgetRanges);
 
       // Warning nếu không có dữ liệu nào
-      if (concepts.length === 0 && purposes.length === 0 && amenities.length === 0 && budgetRanges.length === 0) {
+      if (
+        concepts.length === 0 &&
+        purposes.length === 0 &&
+        amenities.length === 0 &&
+        budgetRanges.length === 0
+      ) {
         console.warn("[DEBUG] All filter lists are empty!");
       }
     } catch (err) {
@@ -178,7 +261,7 @@ export default function MapView({
         try {
           const suggestions = await searchRestaurantsFulltext(
             searchQuery.trim(),
-            8
+            8,
           );
           setSearchSuggestions(suggestions);
           setShowSuggestions(true);
@@ -207,8 +290,10 @@ export default function MapView({
         radius_km: radius,
         concept_ids: selectedConcepts.length > 0 ? selectedConcepts : undefined,
         purpose_ids: selectedPurposes.length > 0 ? selectedPurposes : undefined,
-        amenity_ids: selectedAmenities.length > 0 ? selectedAmenities : undefined,
-        budget_range_ids: selectedBudgetRanges.length > 0 ? selectedBudgetRanges : undefined,
+        amenity_ids:
+          selectedAmenities.length > 0 ? selectedAmenities : undefined,
+        budget_range_ids:
+          selectedBudgetRanges.length > 0 ? selectedBudgetRanges : undefined,
         limit: numberOfPlaces,
       });
 
@@ -220,10 +305,8 @@ export default function MapView({
           lng: userLocation.lng,
         },
         radius_km: radius,
-        concept_ids:
-          selectedConcepts.length > 0 ? selectedConcepts : undefined,
-        purpose_ids:
-          selectedPurposes.length > 0 ? selectedPurposes : undefined,
+        concept_ids: selectedConcepts.length > 0 ? selectedConcepts : undefined,
+        purpose_ids: selectedPurposes.length > 0 ? selectedPurposes : undefined,
         amenity_ids:
           selectedAmenities.length > 0 ? selectedAmenities : undefined,
         budget_range_ids:
@@ -238,7 +321,10 @@ export default function MapView({
       // Get map markers for found restaurants
       if (response.items.length > 0) {
         const restaurantIds = response.items.map((item) => item.id);
-        console.log("[DEBUG] Fetching markers for restaurant IDs:", restaurantIds);
+        console.log(
+          "[DEBUG] Fetching markers for restaurant IDs:",
+          restaurantIds,
+        );
 
         const markers = await getMapMarkers({
           restaurant_ids: restaurantIds,
@@ -250,7 +336,8 @@ export default function MapView({
         setMapMarkers([]);
       }
     } catch (err) {
-      const errorMessage = (err as Error).message || "Có lỗi xảy ra khi tìm kiếm";
+      const errorMessage =
+        (err as Error).message || "Có lỗi xảy ra khi tìm kiếm";
       console.error("[DEBUG] Search error:", err);
       setError(errorMessage);
     } finally {
@@ -260,25 +347,25 @@ export default function MapView({
 
   const toggleConcept = (id: number) => {
     setSelectedConcepts((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
     );
   };
 
   const togglePurpose = (id: number) => {
     setSelectedPurposes((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
     );
   };
 
   const toggleAmenity = (id: number) => {
     setSelectedAmenities((prev) =>
-      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id],
     );
   };
 
   const toggleBudgetRange = (id: number) => {
     setSelectedBudgetRanges((prev) =>
-      prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id],
     );
   };
 
@@ -293,31 +380,41 @@ export default function MapView({
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-950">
-      {/* Back home button - always visible */}
-      <motion.button
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.3 }}
-        onClick={onBackHome}
-        className="absolute top-6 left-6 z-50 p-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-full shadow-lg hover:shadow-xl transition-all border border-neutral-200/50 dark:border-neutral-800/50"
-        title={t("backHome")}
+      {/* Top-Left: Navigation Control Group (Home + Refresh) */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="absolute top-6 left-6 z-50 flex gap-2 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-full shadow-lg border border-neutral-200/50 dark:border-neutral-800/50 p-1.5"
       >
-        <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-      </motion.button>
-
-      {/* Refresh button - when filters hidden */}
-      {!showFilters && (
+        {/* Back home button */}
         <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4 }}
-          onClick={handleRefresh}
-          className="absolute top-6 left-20 z-50 p-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-full shadow-lg hover:shadow-xl transition-all border border-neutral-200/50 dark:border-neutral-800/50"
-          title={t("refreshMap")}
+          onClick={onBackHome}
+          className="p-2.5 rounded-full hover:bg-neutral-50 dark:hover:bg-neutral-800/90 transition-all"
+          title={t("backHome")}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <RefreshCw className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+          <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
         </motion.button>
-      )}
+
+        {/* Divider */}
+        <div className="w-px bg-neutral-200 dark:bg-neutral-700/50" />
+
+        {/* Refresh button */}
+        <motion.button
+          onClick={handleRefresh}
+          className="p-2.5 rounded-full hover:bg-neutral-50 dark:hover:bg-neutral-800/90 transition-all"
+          title={t("refreshMap")}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          disabled={isLoading}
+        >
+          <RefreshCw
+            className={`w-5 h-5 text-neutral-700 dark:text-neutral-300 ${isLoading ? "animate-spin" : ""}`}
+          />
+        </motion.button>
+      </motion.div>
 
       {/* Map container with real Leaflet map */}
       <div className="absolute inset-0">
@@ -333,13 +430,39 @@ export default function MapView({
         >
           <MapComponent
             userLocation={userLocation}
-            markers={mapMarkers}
+            markers={markersForMap}
             selectedMarkerId={selectedMarkerId}
             onMarkerClick={handleMarkerClick}
             isLoading={isLoading}
+            mapLeafletRef={mapLeafletRef}
+            syncCenterToUser={!isSettingLocation}
+            hideUserMarker={isSettingLocation}
           />
         </Suspense>
       </div>
+
+      <AnimatePresence>
+        {isSettingLocation ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="pointer-events-none absolute left-1/2 top-1/2 z-[999] -translate-x-1/2 -translate-y-1/2"
+          >
+            <div className="relative">
+              <motion.div
+                animate={{ scale: [1, 1.4, 1], opacity: [0.4, 0.6, 0.4] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="absolute -inset-3 rounded-full bg-orange-500/30 blur-xl"
+              />
+              <div className="relative rounded-full border-4 border-white bg-gradient-to-br from-orange-500 to-red-600 p-3 shadow-2xl">
+                <Crosshair className="h-7 w-7 text-white" strokeWidth={2.5} />
+              </div>
+              <div className="absolute left-1/2 top-full h-6 w-0.5 -translate-x-1/2 bg-gradient-to-b from-orange-500 to-transparent" />
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* Floating Glassmorphism Filter Panel */}
       <AnimatePresence>
@@ -381,7 +504,10 @@ export default function MapView({
                   </motion.button>
 
                   {/* Settings Dropdown */}
-                  <SettingsDropdown theme={theme} onThemeChange={onThemeChange} />
+                  <SettingsDropdown
+                    theme={theme}
+                    onThemeChange={onThemeChange}
+                  />
                 </div>
               </div>
 
@@ -460,7 +586,9 @@ export default function MapView({
                 {isLoadingFilters ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-                    <span className="ml-3 text-neutral-600">{t("loadingFilters")}</span>
+                    <span className="ml-3 text-neutral-600">
+                      {t("loadingFilters")}
+                    </span>
                   </div>
                 ) : (
                   <>
@@ -505,27 +633,30 @@ export default function MapView({
                     />
 
                     {/* Thông báo khi tất cả filters đều rỗng */}
-                    {conceptsList.length === 0 && purposesList.length === 0 && amenitiesList.length === 0 && budgetRangesList.length === 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl"
-                      >
-                        <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-2">
-                          ⚠️ {t("filterError")}
-                        </p>
-                        <button
-                          onClick={() => {
-                            setUseMockData(true);
-                            setApiMockData(true);
-                            loadFilters();
-                          }}
-                          className="text-sm px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
+                    {conceptsList.length === 0 &&
+                      purposesList.length === 0 &&
+                      amenitiesList.length === 0 &&
+                      budgetRangesList.length === 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl"
                         >
-                          {t("useMockData")}
-                        </button>
-                      </motion.div>
-                    )}
+                          <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-2">
+                            ⚠️ {t("filterError")}
+                          </p>
+                          <button
+                            onClick={() => {
+                              setUseMockData(true);
+                              setApiMockData(true);
+                              loadFilters();
+                            }}
+                            className="text-sm px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
+                          >
+                            {t("useMockData")}
+                          </button>
+                        </motion.div>
+                      )}
                   </>
                 )}
 
@@ -554,12 +685,11 @@ export default function MapView({
                         <span
                           key={r}
                           className={
-                            radius === r
-                              ? "text-orange-600 font-semibold"
-                              : ""
+                            radius === r ? "text-orange-600 font-semibold" : ""
                           }
                         >
-                          {r}{t("km")}
+                          {r}
+                          {t("km")}
                         </span>
                       ))}
                     </div>
@@ -582,7 +712,10 @@ export default function MapView({
                     className="w-full px-4 py-4 rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white/50 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
                     style={{ fontFamily: "Inter, sans-serif" }}
                   >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => (
+                    {[
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                      18, 19, 20,
+                    ].map((num) => (
                       <option key={num} value={num}>
                         {num} {t("restaurants")}
                       </option>
@@ -619,93 +752,36 @@ export default function MapView({
         )}
       </AnimatePresence>
 
-      {/* Toggle filters button (when filters are hidden) */}
-      {!showFilters && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          onClick={() => setShowFilters(true)}
-          className="absolute top-6 right-6 z-[500] p-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-full shadow-lg hover:shadow-xl transition-all border border-neutral-200/50 dark:border-neutral-700/50"
-        >
-          <SlidersHorizontal className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-        </motion.button>
-      )}
-
-      {/* AI Recommendations Panel */}
-      <AnimatePresence>
-        {showAiRecommendations && aiRecommendations.length > 0 && (
-          <motion.div
-            initial={{ x: -100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -100, opacity: 0 }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="absolute left-4 bottom-4 w-full max-w-sm z-[500]"
-          >
-            <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 dark:border-neutral-700/50 overflow-hidden">
-              {/* Header */}
-              <div className="px-5 py-4 border-b border-neutral-200/50 dark:border-neutral-700/50 bg-gradient-to-r from-orange-500/10 to-red-500/10 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-orange-500" />
-                  <h3
-                    className="font-bold text-neutral-800 dark:text-white"
-                    style={{ fontFamily: "Playfair Display, serif" }}
-                  >
-                    Gợi ý từ AI
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setShowAiRecommendations(false)}
-                  className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 text-xl"
-                >
-                  ×
-                </button>
-              </div>
-
-              {/* Recommendations List */}
-              <div className="max-h-72 overflow-y-auto">
-                {aiRecommendations.map((rec, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="p-4 border-b border-neutral-200/50 dark:border-neutral-700/50 last:border-b-0 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50 transition-colors"
-                  >
-                    <div className="space-y-2">
-                      <h4 className="font-semibold text-neutral-800 dark:text-white text-sm">
-                        {rec.name}
-                      </h4>
-                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                        <MapPin className="w-3 h-3 inline mr-1" />
-                        {rec.address}
-                      </p>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-500 italic">
-                        {rec.reason}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Show AI Recommendations Button (when hidden but has data) */}
-      <AnimatePresence>
-        {!showAiRecommendations && aiRecommendations.length > 0 && (
+      {/* Top-Right: Filters & Settings Control Group */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="absolute top-6 right-6 z-[500] flex gap-2 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-full shadow-lg border border-neutral-200/50 dark:border-neutral-800/50 p-1.5"
+      >
+        {/* Filters Toggle Button */}
+        {!showFilters && (
           <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            onClick={() => setShowAiRecommendations(true)}
-            className="absolute left-4 bottom-4 z-[500] px-4 py-3 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-full shadow-lg border border-white/50 dark:border-neutral-700/50 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-white hover:shadow-xl transition-all"
+            onClick={() => setShowFilters(true)}
+            className="p-2.5 rounded-full hover:bg-neutral-50 dark:hover:bg-neutral-800/90 transition-all"
+            title={t("openFilters")}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
           >
-            <Sparkles className="w-4 h-4 text-orange-500" />
-            Gợi ý từ AI
+            <SlidersHorizontal className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
           </motion.button>
         )}
-      </AnimatePresence>
+
+        {/* Divider */}
+        {!showFilters && (
+          <div className="w-px bg-neutral-200 dark:bg-neutral-700/50" />
+        )}
+
+        {/* Settings Dropdown */}
+        <div className="flex items-center">
+          <SettingsDropdown theme={theme} onThemeChange={onThemeChange} />
+        </div>
+      </motion.div>
 
       {/* Location status indicator */}
       {locationStatus === "denied" && (
@@ -720,34 +796,189 @@ export default function MapView({
       )}
 
       {/* Empty results message */}
-      {!isLoading &&
-        searchResults.length === 0 &&
-        !showFilters &&
-        !error && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] text-center"
+      {!isLoading && searchResults.length === 0 && !showFilters && !error && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] text-center"
+        >
+          <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50 dark:border-neutral-700/50">
+            <Search className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-neutral-800 dark:text-white mb-2">
+              {t("noResults")}
+            </h3>
+            <p className="text-neutral-500 dark:text-neutral-400 mb-6">
+              {t("noResultsDesc")}
+            </p>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowFilters(true)}
+              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-semibold"
+            >
+              {t("openFilters")}
+            </motion.button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Bottom-Left: Set Location + Location Indicator + AI Recommendations */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="absolute bottom-6 left-6 z-[500] md:bottom-8 md:left-8 flex flex-col gap-3"
+      >
+        {/* Zoom Controls - on top */}
+        <div className="flex gap-1.5 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-xl shadow-lg border border-neutral-200/50 dark:border-neutral-800/50 p-1 w-fit">
+          <motion.button
+            onClick={handleZoomIn}
+            className="p-1.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/90 transition-all flex items-center justify-center w-7 h-7 flex-shrink-0"
+            title="Zoom in"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
           >
-            <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50 dark:border-neutral-700/50">
-              <Search className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-neutral-800 dark:text-white mb-2">
-                {t("noResults")}
-              </h3>
-              <p className="text-neutral-500 dark:text-neutral-400 mb-6">
-                {t("noResultsDesc")}
-              </p>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowFilters(true)}
-                className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-semibold"
+            <Plus className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
+          </motion.button>
+
+          <div className="w-px bg-neutral-200 dark:bg-neutral-700/50" />
+
+          <motion.button
+            onClick={handleZoomOut}
+            className="p-1.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/90 transition-all flex items-center justify-center w-7 h-7 flex-shrink-0"
+            title="Zoom out"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Minus className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
+          </motion.button>
+        </div>
+
+        {/* Set Location Button - on top */}
+        <AnimatePresence mode="wait">
+          {isSettingLocation ? (
+            <motion.div
+              key="confirm-location"
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="flex flex-col gap-2"
+            >
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className="rounded-xl border border-neutral-200/50 bg-white/90 px-3 py-2 shadow-md backdrop-blur-xl dark:border-neutral-800/50 dark:bg-neutral-900/90"
               >
-                {t("openFilters")}
-              </motion.button>
+                <p
+                  className="text-xs text-neutral-600 dark:text-neutral-300"
+                  style={{ fontFamily: "Inter, sans-serif" }}
+                >
+                  {t("dragToSetLocation")}
+                </p>
+              </motion.div>
+              <div className="flex flex-col gap-2">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setIsSettingLocation(false)}
+                  className="rounded-xl border border-neutral-200/50 bg-white/90 px-4 py-2.5 text-xs text-neutral-600 shadow-md backdrop-blur-xl dark:border-neutral-800/50 dark:bg-neutral-900/90 dark:text-neutral-300 transition-all hover:bg-neutral-50 dark:hover:bg-neutral-800/90"
+                  style={{ fontFamily: "Inter, sans-serif" }}
+                >
+                  {t("cancel")}
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleConfirmPickedLocation}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 px-4 py-2.5 text-xs text-white shadow-[0_4px_16px_rgba(249,115,22,0.3)] transition-shadow hover:shadow-[0_6px_20px_rgba(249,115,22,0.4)]"
+                  style={{ fontFamily: "Inter, sans-serif" }}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  {t("confirmLocation")}
+                </motion.button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.button
+              key="set-location"
+              type="button"
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{
+                type: "spring",
+                damping: 25,
+                stiffness: 300,
+                delay: 0.1,
+              }}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsSettingLocation(true)}
+              className="flex items-center justify-center gap-2 rounded-xl border border-neutral-200/50 bg-white/90 px-5 py-3 shadow-lg backdrop-blur-xl transition-all hover:shadow-xl dark:border-neutral-800/50 dark:bg-neutral-900/90 hover:bg-neutral-50 dark:hover:bg-neutral-800/90 w-fit"
+            >
+              <MapPin className="h-4 w-4 text-orange-500" />
+              <span
+                className="text-sm font-medium text-neutral-700 dark:text-neutral-200"
+                style={{ fontFamily: "Inter, sans-serif" }}
+              >
+                {t("setYourLocation")}
+              </span>
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        {/* Location Indicator - below Set Location */}
+        <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-xl px-3.5 py-2.5 shadow-lg border border-white/50 dark:border-neutral-700/50 w-fit">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <MapPin className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             </div>
-          </motion.div>
-        )}
+            <div>
+              <p className="text-xs font-medium text-neutral-800 dark:text-white">
+                Vị trí hiện tại
+              </p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">
+                {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Recommendations Button */}
+        <AnimatePresence>
+          {!showAiRecommendations && aiRecommendations.length > 0 && (
+            <motion.button
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={() => setShowAiRecommendations(true)}
+              className="px-4 py-2.5 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/50 dark:border-neutral-700/50 flex items-center gap-2.5 text-sm font-medium text-neutral-800 dark:text-white hover:shadow-xl transition-all hover:bg-neutral-50 dark:hover:bg-neutral-800/90 group w-fit"
+            >
+              <motion.div
+                animate={{ rotate: [0, 10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Sparkles className="w-4 h-4 text-orange-500 group-hover:text-orange-600" />
+              </motion.div>
+              {t("aiRecommendationsTitle")}
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      <div className="pointer-events-none absolute inset-0 z-[1000]">
+        <div className="pointer-events-auto">
+          <OdysseusAI
+            onShowRestaurantsOnMap={handleOdysseusRestaurants}
+            searchAnchor={userLocation}
+            searchRadiusKm={radius}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -764,8 +995,7 @@ interface FilterSectionProps {
 
 const colorClasses = {
   blue: {
-    selected:
-      "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md",
+    selected: "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md",
     unselected:
       "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700",
   },

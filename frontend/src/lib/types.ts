@@ -79,6 +79,11 @@ export interface GeoJSONProperties {
   id: number;
   name: string;
   address: string;
+  /** Odysseus / client-only pins — skip backend detail fetch */
+  is_ai_suggestion?: boolean;
+  cuisine?: string;
+  rating?: number;
+  price_hint?: string;
 }
 
 export interface GeoJSONFeature {

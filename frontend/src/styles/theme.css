@@ -1,12 +1,5 @@
-/* 1. GOOGLE FONTS (Bắt buộc ở dòng đầu tiên) */
-@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap");
-
-@import "tailwindcss";
-
-@source '../**/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
-/* 3. VARIABLES (Gộp từ theme.css) */
 :root {
   --font-size: 16px;
   --background: #ffffff;
@@ -85,7 +78,6 @@
   --sidebar-ring: #ef4444;
 }
 
-/* 4. THEME MAPPING (Tích hợp inline) */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -127,153 +119,73 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* 5. BASE STYLES & TYPOGRAPHY */
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out;
   }
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Inter", sans-serif; /* Gộp từ fonts.css/index.css */
-    font-size: var(--font-size);
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: "Playfair Display", serif; /* Gộp từ fonts.css */
+  html {
+    transition: background-color 0.2s ease-in-out;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
   }
 
   h1 {
-    font-size: 1.875rem; /* ~ text-3xl cho tiêu đề chính FoOdyssey */
-    font-weight: 700;
-    line-height: 1.2;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
   }
 
   h2 {
-    font-size: 1.5rem;
-    font-weight: 600;
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
   }
 
   h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
   }
 
-  label,
-  button {
-    font-size: 0.875rem;
+  h4 {
+    font-size: var(--text-base);
     font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
   }
 
   input {
-    font-size: 0.875rem;
+    font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
+    line-height: 1.5;
   }
-}
-
-/* 6. LEAFLET MAP STYLES */
-.leaflet-container {
-  width: 100%;
-  height: 100%;
-}
-
-.leaflet-popup-content-wrapper {
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-}
-
-.leaflet-popup-content {
-  margin: 0;
-  padding: 0;
-}
-
-/* 7. CUSTOM SCROLLBAR */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-/* 8. RANGE INPUT STYLES */
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-
-input[type="range"]::-webkit-slider-runnable-track {
-  background: #e5e5e5;
-  height: 8px;
-  border-radius: 4px;
-}
-
-.dark input[type="range"]::-webkit-slider-runnable-track {
-  background: #404040;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  margin-top: -4px;
-  background: linear-gradient(to right, #f97316, #dc2626);
-  height: 16px;
-  width: 16px;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-input[type="range"]:focus::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.3);
-}
-
-/* Leaflet tooltip polish (aligned with FE_v26 map styling) */
-.restaurant-tooltip {
-  background: white !important;
-  border: none !important;
-  border-radius: 16px !important;
-  padding: 12px 16px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
-  opacity: 1 !important;
-}
-.restaurant-tooltip::before {
-  border-top-color: white !important;
-}
-.custom-tooltip {
-  background: white !important;
-  border: none !important;
-  border-radius: 12px !important;
-  padding: 8px 14px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
-}
-.custom-tooltip::before {
-  border-top-color: white !important;
-}
-.leaflet-container {
-  font-family: "Inter", sans-serif;
 }

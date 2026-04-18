@@ -1,18 +1,18 @@
-"use client"; // Bắt buộc phải có dòng này ở trên cùng
+"use client";
 
 import { useState, useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { LanguageProvider } from "@/components/LanguageContext";
+import { AuthProvider } from "@/components/AuthContext";
 import HomePage from "@/components/HomePage";
 import MapView from "@/components/MapView";
-import { RestaurantRecommendation } from "@/lib/types";
+import ExplorePage from "@/components/ExplorePage";
 
-type Screen = "home" | "map";
+type Screen = "home" | "map" | "explore";
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("home");
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [aiRecommendations, setAiRecommendations] = useState<RestaurantRecommendation[]>([]);
 
   useEffect(() => {
     if (theme === "dark") {
@@ -30,46 +30,59 @@ export default function App() {
     setCurrentScreen("home");
   };
 
+  const handleGoToExplore = () => {
+    setCurrentScreen("explore");
+  };
+
   return (
     <LanguageProvider>
-      <div className="size-full relative overflow-hidden bg-neutral-50 dark:bg-neutral-950">
-        <AnimatePresence mode="wait">
-          {currentScreen === "home" && (
-            <motion.div
-              key="home"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="w-full h-full"
-            >
-              <HomePage
-                onStartJourney={handleStartJourney}
-                theme={theme}
-                onThemeChange={setTheme}
-                onAiRecommendations={setAiRecommendations}
-              />
-            </motion.div>
-          )}
-          {currentScreen === "map" && (
-            <motion.div
-              key="map"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="w-full h-full"
-            >
-              <MapView
-                onBackHome={handleBackHome}
-                aiRecommendations={aiRecommendations}
-                theme={theme}
-                onThemeChange={setTheme}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <AuthProvider>
+        <div className="size-full relative overflow-hidden bg-neutral-50 dark:bg-neutral-950">
+          <AnimatePresence mode="wait">
+            {currentScreen === "home" && (
+              <motion.div
+                key="home"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="w-full h-full"
+              >
+                <HomePage
+                  onStartJourney={handleStartJourney}
+                  onGoToExplore={handleGoToExplore}
+                  theme={theme}
+                  onThemeChange={setTheme}
+                />
+              </motion.div>
+            )}
+            {currentScreen === "map" && (
+              <motion.div
+                key="map"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="w-full h-full"
+              >
+                <MapView onBackHome={handleBackHome} theme={theme} onThemeChange={setTheme} />
+              </motion.div>
+            )}
+            {currentScreen === "explore" && (
+              <motion.div
+                key="explore"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="w-full h-full"
+              >
+                <ExplorePage onBackHome={handleBackHome} theme={theme} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </AuthProvider>
     </LanguageProvider>
   );
 }
