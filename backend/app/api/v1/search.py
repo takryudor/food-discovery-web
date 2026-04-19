@@ -25,7 +25,7 @@ def post_search(payload: SearchRequest, db: Session = Depends(get_db)) -> Search
 	if payload.location is not None:
 		location = (payload.location.lat, payload.location.lng)
 
-	all_results = search_places(
+	total, items = search_places(
 		db=db,
 		query=payload.query,
 		location=location,
@@ -33,9 +33,13 @@ def post_search(payload: SearchRequest, db: Session = Depends(get_db)) -> Search
 		concept_ids=payload.concept_ids,
 		purpose_ids=payload.purpose_ids,
 		amenity_ids=payload.amenity_ids,
+		concept_match=payload.concept_match,
+		purpose_match=payload.purpose_match,
+		amenity_match=payload.amenity_match,
+		ranking=payload.ranking,
+		limit=payload.limit,
+		offset=payload.offset,
 	)
 
-	total = len(all_results)
-	items = all_results[payload.offset : payload.offset + payload.limit]
 	return SearchResponse(total=total, items=items)
 
