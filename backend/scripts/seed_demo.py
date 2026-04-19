@@ -11,7 +11,7 @@ Run:
 from sqlalchemy import select
 from datetime import datetime
 
-from app.db.models import Amenity, Concept, Place, Purpose, User, Review, Ward
+from app.db.models import Amenity, Concept, Dish, Place, Purpose, User, Review, Ward
 from app.db.session import SessionLocal
 
 
@@ -64,7 +64,15 @@ def main() -> None:
 
 		session.flush()
 
-		# ---- 3. Seed places ----
+		# ---- 4. Seed Dishes ----
+		dish_pho_bo = _get_or_create_by_name(session, Dish, name="Phở bò", slug="pho-bo")
+		dish_pho_ga = _get_or_create_by_name(session, Dish, name="Phở gà", slug="pho-ga")
+		dish_bun_bo = _get_or_create_by_name(session, Dish, name="Bún bò Huế", slug="bun-bo-hue")
+		dish_banh_mi_thit = _get_or_create_by_name(session, Dish, name="Bánh mì kẹp thịt", slug="banh-mi-thit")
+		dish_cafe_sua = _get_or_create_by_name(session, Dish, name="Cà phê sữa đá", slug="cafe-sua")
+		dish_nuoc_cam = _get_or_create_by_name(session, Dish, name="Nước cam", slug="nuoc-cam")
+
+		# ---- 5. Seed places ----
 		print("Seeding places...")
 		existing = {p.name for p in session.scalars(select(Place)).all()}
 
@@ -78,26 +86,30 @@ def main() -> None:
 		        concepts: list[Concept],
 		        purposes: list[Purpose],
 		        amenities: list[Amenity],
+		        dishes: list[Dish] = [],
 		        ward_code: str | None = None,
 		) -> Place:
 		        p = session.scalar(select(Place).where(Place.name == name))
-		        if p:
-		                return p
-		        p = Place(
-		                name=name,
-		                description=description,
-		                address=address,
-		                latitude=latitude,
-		                longitude=longitude,
-		        )
-		        p.concepts.extend(concepts)
-		        p.purposes.extend(purposes)
-		        p.amenities.extend(amenities)
+		        if not p:
+		                p = Place(
+		                        name=name,
+		                        description=description,
+		                        address=address,
+		                        latitude=latitude,
+		                        longitude=longitude,
+		                )
+		                session.add(p)
+		        
+		        # Always update relationships to ensure sync with latest seed data
+		        p.concepts = concepts
+		        p.purposes = purposes
+		        p.amenities = amenities
+		        p.dishes = dishes
+		        
 		        if ward_code:
 		                ward = session.query(Ward).filter_by(code=ward_code).first()
 		                if ward:
 		                        p.ward_id = ward.id
-		        session.add(p)
 		        return p
 
 		# Some demo coordinates around HCMC center
@@ -110,6 +122,7 @@ def main() -> None:
 		        concepts=[concept_food],
 		        purposes=[purpose_breakfast],
 		        amenities=[amenity_parking],
+		        dishes=[dish_pho_bo, dish_pho_ga, dish_bun_bo, dish_nuoc_cam],
 		        ward_code="26734", # Phường Bến Nghé, Q.1
 		)
 		p2 = add_place(
@@ -121,6 +134,7 @@ def main() -> None:
 		        concepts=[concept_food],
 		        purposes=[purpose_breakfast],
 		        amenities=[amenity_wifi],
+		        dishes=[dish_banh_mi_thit],
 		        ward_code="27082", # Mượn tạm Phường Tân Phong, Q.7 cho demo
 		)
 		p3 = add_place(
@@ -132,6 +146,7 @@ def main() -> None:
 		        concepts=[concept_coffee],
 		        purposes=[purpose_chill],
 		        amenities=[amenity_wifi, amenity_parking],
+		        dishes=[dish_cafe_sua, dish_nuoc_cam],
 		        ward_code="26839", # Phường 25, Q.Bình Thạnh
 		)
 
