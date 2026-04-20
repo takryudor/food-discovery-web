@@ -13,12 +13,12 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { useLanguage } from "./LanguageContext";
-import { useAuth } from "./AuthContext";
-import SettingsDropdown from "./SettingsDropdown";
-import LoginModal from "./LoginModal";
-import RegisterModal from "./RegisterModal";
-import UserMenu from "./UserMenu";
+import { useLanguage } from "@/components/providers/LanguageContext";
+import { useAuth } from "@/components/auth/AuthContext";
+import SettingsDropdown from "@/components/common/SettingsDropdown";
+import LoginModal from "@/components/auth/LoginModal";
+import RegisterModal from "@/components/auth/RegisterModal";
+import UserMenu from "@/components/auth/UserMenu";
 
 interface HomePageProps {
   onStartJourney: () => void;
@@ -309,7 +309,7 @@ export default function HomePage({
                     ))}
                   </div>
                   <p className="text-neutral-700 dark:text-neutral-300 mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    "{t('reviewText')}"
+                    &quot;{t('reviewText')}&quot;
                   </p>
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500" />

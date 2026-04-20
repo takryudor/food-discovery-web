@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef } from "react";
+import Image from "next/image";
 import { motion, useScroll, useTransform } from 'motion/react';
 import { ArrowLeft, Star, Eye, MessageCircle, Clock } from 'lucide-react';
-import { useLanguage } from './LanguageContext';
+import { useLanguage } from '@/components/providers/LanguageContext';
 
 interface ExplorePageProps {
   onBackHome: () => void;
@@ -110,7 +111,13 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
               className="bg-white dark:bg-neutral-900 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
             >
               <div className="relative h-56 overflow-hidden">
-                <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
+                <Image
+                  src={article.image}
+                  alt={article.title}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 33vw"
+                  className="object-cover"
+                />
                 <div className="absolute top-4 left-4">
                   <span className="px-4 py-1.5 bg-orange-500 text-white text-xs rounded-full" style={{ fontFamily: 'Inter, sans-serif' }}>
                     {article.category}
@@ -161,8 +168,14 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
                 whileHover={{ y: -6, scale: 1.02 }}
                 className="w-64 flex-shrink-0 bg-white dark:bg-neutral-900 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
               >
-                <div className="h-36 overflow-hidden">
-                  <img src={news.image} alt={news.title} className="w-full h-full object-cover" />
+                <div className="relative h-36 overflow-hidden">
+                  <Image
+                    src={news.image}
+                    alt={news.title}
+                    fill
+                    sizes="256px"
+                    className="object-cover"
+                  />
                 </div>
                 <div className="p-4">
                   <h4 className="text-sm text-neutral-800 dark:text-neutral-100 mb-2 line-clamp-2" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -204,7 +217,13 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
             >
               {/* Large image */}
               <div className="md:w-2/5 h-64 md:h-auto overflow-hidden relative">
-                <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
+                <Image
+                  src={article.image}
+                  alt={article.title}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 40vw"
+                  className="object-cover"
+                />
                 <div className="absolute top-4 left-4">
                   <span className="px-4 py-1.5 bg-orange-500 text-white text-xs rounded-full" style={{ fontFamily: 'Inter, sans-serif' }}>
                     {article.category}

@@ -215,15 +215,43 @@ Current backend scaffold is still mostly structure-only beyond the bootstrap:
 frontend/
   src/
     app/
+      page.tsx
+      map/page.tsx
+      explore/page.tsx
+      _components/
+      providers.tsx
     components/
+      auth/
+      common/
+      feedback/
+      map/
+      restaurant/
+        components/
+      providers/
+      ui/
     hooks/
     lib/
+      api/
+        client.ts
+        ai.ts
+        filters.ts
+        search.ts
+        geo.ts
+        restaurant.ts
+        index.ts
+      api.ts
     store/
+      uiStore.ts
+      searchStore.ts
+      filterStore.ts
+      mapStore.ts
 ```
 
-Main page entry is now:
+Main routes are now:
 
 - `frontend/src/app/page.tsx`
+- `frontend/src/app/map/page.tsx`
+- `frontend/src/app/explore/page.tsx`
 
 ## 9) Quick Troubleshooting
 

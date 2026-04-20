@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { CheckCircle, Sparkles } from "lucide-react";
-import { useLanguage } from "./LanguageContext";
+import { useLanguage } from "@/components/providers/LanguageContext";
 import { useMemo } from "react";
 
 interface CompletionDialogProps {
