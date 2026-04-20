@@ -2,17 +2,31 @@ from __future__ import annotations
 
 import math
 
-from sqlalchemy import func, or_, select
+import sqlalchemy as sa
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db.models import Dish, Place, place_amenities, place_concepts, place_dishes, place_purposes
+from ..db.models import (
+	Dish,
+	Place,
+	place_amenities,
+	place_budget_ranges,
+	place_concepts,
+	place_dishes,
+	place_purposes,
+)
 
 
 def _place_tsvector():
 	"""Tsvector cho FTS (Postgres). Dùng config 'simple' để không phụ thuộc ngôn ngữ cụ thể."""
-	return func.to_tsvector(
-		"simple",
-		func.concat_ws(" ", func.coalesce(Place.name, ""), func.coalesce(Place.description, "")),
+	# Prefer stored tsvector column when present (faster with GIN index).
+	# Fallback to computed expression for non-migrated DBs / non-Postgres.
+	return func.coalesce(
+		Place.search_tsv,
+		func.to_tsvector(
+			"simple",
+			func.concat_ws(" ", func.coalesce(Place.name, ""), func.coalesce(Place.description, "")),
+		),
 	)
 
 
@@ -33,6 +47,47 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 	c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 	return r * c
 
+
+def _sql_haversine_km(
+	*,
+	ulat: float,
+	ulng: float,
+	plat,
+	plng,
+):
+	"""
+	SQL expression tính khoảng cách Haversine (km).
+
+	- Dùng cho lọc radius + order-by distance ở DB để pagination/total đúng.
+	- Hoạt động tốt trên PostgreSQL (mục tiêu chính của project).
+	"""
+	r = 6371.0
+	phi1 = func.radians(sa.literal(ulat))
+	phi2 = func.radians(plat)
+	dphi = func.radians(plat - sa.literal(ulat))
+	dlambda = func.radians(plng - sa.literal(ulng))
+
+	a = (
+		func.pow(func.sin(dphi / 2.0), 2)
+		+ func.cos(phi1) * func.cos(phi2) * func.pow(func.sin(dlambda / 2.0), 2)
+	)
+	c = 2.0 * func.atan2(func.sqrt(a), func.sqrt(1.0 - a))
+	return (sa.literal(r) * c).cast(sa.Float)
+
+
+def _bbox_for_radius_km(*, lat: float, lng: float, radius_km: float) -> tuple[float, float, float, float]:
+	"""
+	Bounding box (min_lat, max_lat, min_lng, max_lng) for quick pre-filter.
+
+	This is an approximation that greatly reduces candidate rows before applying
+	the exact Haversine distance filter.
+	"""
+	# 1 degree latitude ~ 111 km
+	dlat = radius_km / 111.0
+	# longitude degrees shrink by cos(latitude)
+	cos_lat = math.cos(math.radians(lat))
+	dlng = radius_km / (111.0 * max(0.000001, cos_lat))
+	return (lat - dlat, lat + dlat, lng - dlng, lng + dlng)
 
 def compute_match_score(
 	*,
@@ -117,7 +172,9 @@ def _fetch_pg_text_ranks(db: Session, *, page_ids: list[int], q: str) -> dict[in
 	if not page_ids:
 		return {}
 	tsvector = _place_tsvector()
-	tsq = func.plainto_tsquery("simple", q.strip())
+	# websearch_to_tsquery handles multi-word queries better (like Google style).
+	# Fallback to plainto_tsquery for compatibility if needed.
+	tsq = func.websearch_to_tsquery("simple", q.strip())
 	stmt = select(Place.id, func.ts_rank_cd(tsvector, tsq)).where(Place.id.in_(page_ids))
 	rows = list(db.execute(stmt))
 	out = {int(r[0]): float(r[1] or 0.0) for r in rows}
@@ -136,9 +193,13 @@ def search_places(
 	concept_ids: list[int],
 	purpose_ids: list[int],
 	amenity_ids: list[int],
+	budget_range_ids: list[int],
+	dish_ids: list[int],
 	concept_match: str = "any",
 	purpose_match: str = "any",
 	amenity_match: str = "any",
+	budget_range_match: str = "any",
+	dish_match: str = "any",
 	ranking: str = "smart",
 	limit: int = 20,
 	offset: int = 0,
@@ -154,8 +215,19 @@ def search_places(
 	selected_concepts = set(concept_ids)
 	selected_purposes = set(purpose_ids)
 	selected_amenities = set(amenity_ids)
+	selected_budget_ranges = set(budget_range_ids)
+	selected_dishes = set(dish_ids)
 
-	ids_stmt = select(Place.id).select_from(Place)
+	distance_expr = None
+	if location is not None:
+		ulat, ulng = location
+		distance_expr = _sql_haversine_km(ulat=ulat, ulng=ulng, plat=Place.latitude, plng=Place.longitude).label(
+			"distance_km"
+		)
+		ids_stmt = select(Place.id, distance_expr).select_from(Place)
+	else:
+		ids_stmt = select(Place.id).select_from(Place)
+
 	if query and query.strip():
 		q = query.strip()
 		like = f"%{q}%"
@@ -166,11 +238,26 @@ def search_places(
 		)
 		if dialect == "postgresql" and ranking == "smart":
 			tsvector = _place_tsvector()
-			tsq = func.plainto_tsquery("simple", q)
+			tsq = func.websearch_to_tsquery("simple", q)
 			fts = tsvector.op("@@")(tsq)
 			ids_stmt = ids_stmt.where(or_(fts, ilike))
 		else:
 			ids_stmt = ids_stmt.where(ilike)
+
+	# Geo radius filter at DB-level (correct total/pagination)
+	if distance_expr is not None and radius_km is not None:
+		# Fast bbox pre-filter (uses btree indexes on latitude/longitude when available)
+		min_lat, max_lat, min_lng, max_lng = _bbox_for_radius_km(lat=ulat, lng=ulng, radius_km=float(radius_km))
+		ids_stmt = ids_stmt.where(
+			and_(
+				Place.latitude >= min_lat,
+				Place.latitude <= max_lat,
+				Place.longitude >= min_lng,
+				Place.longitude <= max_lng,
+			)
+		)
+		# Exact radius filter
+		ids_stmt = ids_stmt.where(distance_expr <= float(radius_km))
 
 	def _apply_tag_filter(
 		stmt,
@@ -211,18 +298,129 @@ def search_places(
 		assoc_table=place_amenities,
 		tag_col=place_amenities.c.amenity_id,
 	)
+	ids_stmt = _apply_tag_filter(
+		ids_stmt,
+		selected=selected_budget_ranges,
+		mode=budget_range_match,
+		assoc_table=place_budget_ranges,
+		tag_col=place_budget_ranges.c.budget_range_id,
+	)
+	ids_stmt = _apply_tag_filter(
+		ids_stmt,
+		selected=selected_dishes,
+		mode=dish_match,
+		assoc_table=place_dishes,
+		tag_col=place_dishes.c.dish_id,
+	)
 
 	total = int(db.scalar(select(func.count()).select_from(ids_stmt.subquery())) or 0)
 
+	score_expr = None
 	if query and query.strip() and ranking == "smart" and dialect == "postgresql":
 		tsvector = _place_tsvector()
-		tsq = func.plainto_tsquery("simple", query.strip())
+		tsq = func.websearch_to_tsquery("simple", query.strip())
 		rank_expr = func.ts_rank_cd(tsvector, tsq)
-		ordered = ids_stmt.order_by(rank_expr.desc().nulls_last(), Place.id.asc()).limit(limit).offset(offset)
-	else:
-		ordered = ids_stmt.order_by(Place.id.asc()).limit(limit).offset(offset)
 
-	page_ids = list(db.scalars(ordered).all())
+		# Multi-signal DB ordering for stable pagination:
+		# - text rank: primary
+		# - rating: secondary boost
+		# - tag match count: small boost when user selected tags
+		rating_expr = (func.coalesce(Place.rating, 0.0) / 5.0).cast(sa.Float)
+
+		tag_count_terms = []
+		if selected_concepts:
+			tag_count_terms.append(
+				select(func.count(func.distinct(place_concepts.c.concept_id)))
+				.where(
+					and_(
+						place_concepts.c.place_id == Place.id,
+						place_concepts.c.concept_id.in_(selected_concepts),
+					)
+				)
+				.scalar_subquery()
+			)
+		if selected_purposes:
+			tag_count_terms.append(
+				select(func.count(func.distinct(place_purposes.c.purpose_id)))
+				.where(
+					and_(
+						place_purposes.c.place_id == Place.id,
+						place_purposes.c.purpose_id.in_(selected_purposes),
+					)
+				)
+				.scalar_subquery()
+			)
+		if selected_amenities:
+			tag_count_terms.append(
+				select(func.count(func.distinct(place_amenities.c.amenity_id)))
+				.where(
+					and_(
+						place_amenities.c.place_id == Place.id,
+						place_amenities.c.amenity_id.in_(selected_amenities),
+					)
+				)
+				.scalar_subquery()
+			)
+		if selected_budget_ranges:
+			tag_count_terms.append(
+				select(func.count(func.distinct(place_budget_ranges.c.budget_range_id)))
+				.where(
+					and_(
+						place_budget_ranges.c.place_id == Place.id,
+						place_budget_ranges.c.budget_range_id.in_(selected_budget_ranges),
+					)
+				)
+				.scalar_subquery()
+			)
+		if selected_dishes:
+			tag_count_terms.append(
+				select(func.count(func.distinct(place_dishes.c.dish_id)))
+				.where(and_(place_dishes.c.place_id == Place.id, place_dishes.c.dish_id.in_(selected_dishes)))
+				.scalar_subquery()
+			)
+
+		if tag_count_terms:
+			tag_count_expr = sa.literal(0.0)
+			for term in tag_count_terms:
+				tag_count_expr = tag_count_expr + func.coalesce(term, 0.0)
+		else:
+			tag_count_expr = sa.literal(0.0)
+
+		# Weights tuned to keep text relevance dominant.
+		score_expr = (
+			(rank_expr * 0.80)
+			+ (rating_expr * 0.18)
+			+ (tag_count_expr * 0.02)
+		)
+
+	if distance_expr is not None:
+		# When searching "near me", distance is primary ordering.
+		if score_expr is not None:
+			ordered = (
+				ids_stmt.order_by(
+					distance_expr.asc(),
+					score_expr.desc().nulls_last(),
+					Place.id.asc(),
+				)
+				.limit(limit)
+				.offset(offset)
+			)
+		else:
+			ordered = ids_stmt.order_by(distance_expr.asc(), Place.id.asc()).limit(limit).offset(offset)
+	else:
+		if score_expr is not None:
+			ordered = ids_stmt.order_by(score_expr.desc().nulls_last(), Place.id.asc()).limit(limit).offset(offset)
+		else:
+			ordered = ids_stmt.order_by(Place.id.asc()).limit(limit).offset(offset)
+
+	distance_by_id: dict[int, float] = {}
+	if distance_expr is not None:
+		rows = list(db.execute(ordered).all())
+		page_ids = [int(r[0]) for r in rows]
+		distance_by_id = {int(r[0]): float(r[1]) for r in rows}
+	else:
+		page_ids = list(db.scalars(ordered).all())
+
 	if not page_ids:
 		return total, []
 
@@ -233,6 +431,7 @@ def search_places(
 			selectinload(Place.concepts),
 			selectinload(Place.purposes),
 			selectinload(Place.amenities),
+			selectinload(Place.budget_ranges),
 			selectinload(Place.dishes),
 		)
 	)
@@ -251,12 +450,7 @@ def search_places(
 		place_purpose_ids = {p.id for p in place.purposes}
 		place_amenity_ids = {a.id for a in place.amenities}
 
-		distance_km = None
-		if location is not None:
-			ulat, ulng = location
-			distance_km = haversine_km(ulat, ulng, place.latitude, place.longitude)
-			if radius_km is not None and distance_km > radius_km:
-				continue
+		distance_km = distance_by_id.get(place.id) if distance_by_id else None
 
 		tr = text_ranks.get(place.id) if text_ranks else None
 		match_score = compute_match_score(

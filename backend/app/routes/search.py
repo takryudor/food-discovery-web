@@ -33,13 +33,17 @@ def post_search(payload: SearchRequest, db: Session = Depends(get_db)) -> Search
 		concept_ids=payload.concept_ids,
 		purpose_ids=payload.purpose_ids,
 		amenity_ids=payload.amenity_ids,
+		budget_range_ids=payload.budget_range_ids,
+		dish_ids=payload.dish_ids,
 		concept_match=payload.concept_match,
 		purpose_match=payload.purpose_match,
 		amenity_match=payload.amenity_match,
+		budget_range_match=payload.budget_range_match,
+		dish_match=payload.dish_match,
 		ranking=payload.ranking,
 		limit=payload.limit,
 		offset=payload.offset,
 	)
 
-	return SearchResponse(total=total, items=items)
+	return SearchResponse(total=total, items=items, limit=payload.limit, offset=payload.offset)
 

@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic.config import ConfigDict
+
+_WS_RE = re.compile(r"\s+")
+
+# Default demo location when only radius_km is provided (HCMC center).
+_DEFAULT_LOCATION = {"lat": 10.7769, "lng": 106.7009}
 
 
 def _normalize_tag_ids(v: object) -> list[int]:
@@ -36,6 +43,8 @@ class SearchLocation(BaseModel):
 	Vị trí của user để tính khoảng cách (km) tới từng địa điểm.
 	"""
 
+	model_config = ConfigDict(extra="ignore")
+
 	lat: float = Field(..., ge=-90, le=90)
 	lng: float = Field(..., ge=-180, le=180)
 
@@ -50,6 +59,10 @@ class SearchRequest(BaseModel):
 	- `*_match`: chấp nhận không phân biệt hoa thường (ví dụ ANY → any).
 	"""
 
+	# Cho phép client gửi dư field (không gây 422), để tương thích khi FE/BE
+	# update lệch phiên bản trong quá trình phát triển.
+	model_config = ConfigDict(extra="ignore")
+
 	# Query text. Nếu rỗng thì trả kết quả dựa trên filter + khoảng cách.
 	query: str | None = None
 
@@ -63,6 +76,8 @@ class SearchRequest(BaseModel):
 	concept_ids: list[int] = Field(default_factory=list)
 	purpose_ids: list[int] = Field(default_factory=list)
 	amenity_ids: list[int] = Field(default_factory=list)
+	budget_range_ids: list[int] = Field(default_factory=list)
+	dish_ids: list[int] = Field(default_factory=list)
 
 	# Match mode per group:
 	# - "any": place matches if it has at least one selected tag in that group
@@ -70,6 +85,8 @@ class SearchRequest(BaseModel):
 	concept_match: Literal["any", "all"] = "any"
 	purpose_match: Literal["any", "all"] = "any"
 	amenity_match: Literal["any", "all"] = "any"
+	budget_range_match: Literal["any", "all"] = "any"
+	dish_match: Literal["any", "all"] = "any"
 
 	# Phân trang
 	limit: int = Field(default=20, ge=1, le=100)
@@ -87,15 +104,34 @@ class SearchRequest(BaseModel):
 			return None
 		if not isinstance(v, str):
 			raise ValueError("query must be a string or null")
-		s = v.strip()
+		# Trim + collapse whitespace to avoid accidental mismatches like "pho   bo"
+		s = _WS_RE.sub(" ", v.strip())
 		return s if s else None
 
-	@field_validator("concept_ids", "purpose_ids", "amenity_ids", mode="before")
+	@field_validator("query")
+	@classmethod
+	def validate_query_length(cls, v: str | None) -> str | None:
+		# Keep payload small + prevent pathological queries
+		if v is None:
+			return None
+		if len(v) > 200:
+			raise ValueError("query is too long (max 200 characters)")
+		return v
+
+	@field_validator("concept_ids", "purpose_ids", "amenity_ids", "budget_range_ids", "dish_ids", mode="before")
 	@classmethod
 	def normalize_tag_id_lists(cls, v: object) -> list[int]:
 		return _normalize_tag_ids(v)
 
-	@field_validator("concept_match", "purpose_match", "amenity_match", mode="before")
+	@field_validator("concept_ids", "purpose_ids", "amenity_ids", "budget_range_ids", "dish_ids")
+	@classmethod
+	def validate_max_ids(cls, v: list[int]) -> list[int]:
+		# Anti-abuse / performance guardrail: too many ids makes SQL IN(...) heavy.
+		if len(v) > 50:
+			raise ValueError("too many ids in a filter group (max 50)")
+		return v
+
+	@field_validator("concept_match", "purpose_match", "amenity_match", "budget_range_match", "dish_match", mode="before")
 	@classmethod
 	def normalize_match_mode(cls, v: object) -> str:
 		if v is None:
@@ -113,6 +149,45 @@ class SearchRequest(BaseModel):
 		if v is None or v == "":
 			return None
 		return v
+
+	@field_validator("limit", mode="before")
+	@classmethod
+	def normalize_limit(cls, v: object) -> int:
+		# Allow FE to send "20" or "" without breaking
+		if v is None or v == "":
+			return 20
+		if isinstance(v, bool):
+			raise ValueError("limit must be an integer")
+		try:
+			return int(v)
+		except (TypeError, ValueError):
+			raise ValueError("limit must be an integer") from None
+
+	@field_validator("offset", mode="before")
+	@classmethod
+	def normalize_offset(cls, v: object) -> int:
+		if v is None or v == "":
+			return 0
+		if isinstance(v, bool):
+			raise ValueError("offset must be an integer")
+		try:
+			return int(v)
+		except (TypeError, ValueError):
+			raise ValueError("offset must be an integer") from None
+
+	@model_validator(mode="before")
+	@classmethod
+	def default_location_when_radius_only(cls, data: object):
+		"""
+		Allow payload with only radius_km (no location) by injecting a default location.
+		Useful for demo/testing when FE cannot access geolocation yet.
+		"""
+		if not isinstance(data, dict):
+			return data
+		if data.get("radius_km") not in (None, "") and data.get("location") in (None, ""):
+			data = dict(data)
+			data["location"] = _DEFAULT_LOCATION
+		return data
 
 	@field_validator("ranking", mode="before")
 	@classmethod
@@ -147,4 +222,6 @@ class PlaceOut(BaseModel):
 class SearchResponse(BaseModel):
 	total: int
 	items: list[PlaceOut]
+	limit: int
+	offset: int
 

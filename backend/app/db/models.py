@@ -5,6 +5,7 @@ from typing import Optional
 
 from sqlalchemy import Column, Float, ForeignKey, Integer, String, Table, Text, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -110,6 +111,8 @@ class Place(Base):
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 	name: Mapped[str] = mapped_column(String(255), index=True)
 	description: Mapped[str | None] = mapped_column(Text, nullable=True)
+	# Full-text search vector (PostgreSQL). Maintained by DB trigger (Alembic migration).
+	search_tsv: Mapped[TSVECTOR | None] = mapped_column(TSVECTOR, nullable=True)
 	
 	# Liên kết địa chỉ có cấu trúc
 	ward_id: Mapped[int | None] = mapped_column(ForeignKey("wards.id"), nullable=True, index=True)

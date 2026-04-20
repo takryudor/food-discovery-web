@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..db.models import Place
@@ -51,35 +51,28 @@ def search_restaurant_suggestions(
     if not query:
         return []
 
-    # Tìm kiếm theo tên hoặc địa chỉ (case-insensitive)
-    search_pattern = f"%{query}%"
-    stmt = select(Place).where(
-        (Place.name.ilike(search_pattern))
-        | (Place.address.ilike(search_pattern))
+    # Làm toàn bộ trong DB: filter + sort + limit (tránh load hết rồi sort Python).
+    q_prefix = f"{query}%"
+    q_contains = f"%{query}%"
+
+    name_starts = Place.name.ilike(q_prefix)
+    name_contains = Place.name.ilike(q_contains)
+    addr_contains = Place.address.ilike(q_contains)
+
+    # Rank: 0 = name startswith, 1 = name contains, 2 = address contains, 3 = others (shouldn't happen)
+    rank_expr = case(
+        (name_starts, 0),
+        (name_contains, 1),
+        (addr_contains, 2),
+        else_=3,
     )
 
-    places = list(db.scalars(stmt).all())
+    stmt = (
+        select(Place.id, Place.name, Place.address)
+        .where(name_contains | addr_contains)
+        .order_by(rank_expr.asc(), func.length(Place.name).asc(), func.lower(Place.name).asc(), Place.id.asc())
+        .limit(limit)
+    )
 
-    # Sắp xếp: tên bắt đầu bằng query -> tên chứa query -> theo độ dài tên
-    def sort_key(place: Place) -> tuple[int, int, str]:
-        name_lower = place.name.lower()
-        # Ưu tiên 0: bắt đầu bằng query (0) hay chỉ chứa query (1)
-        starts_with = 0 if name_lower.startswith(query) else 1
-        # Ưu tiên 1: độ dài tên (ngắn hơn lên trước)
-        name_length = len(place.name)
-        # Ưu tiên 2: tên để sort alphabet nếu cùng độ dài
-        return (starts_with, name_length, name_lower)
-
-    sorted_places = sorted(places, key=sort_key)
-
-    # Giới hạn số kết quả
-    limited_places = sorted_places[:limit]
-
-    return [
-        {
-            "id": place.id,
-            "name": place.name,
-            "address": place.address,
-        }
-        for place in limited_places
-    ]
+    rows = list(db.execute(stmt).all())
+    return [{"id": int(r[0]), "name": r[1], "address": r[2]} for r in rows]
