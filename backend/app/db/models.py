@@ -40,6 +40,13 @@ place_budget_ranges = Table(
 	Column("budget_range_id", ForeignKey("budget_ranges.id", ondelete="CASCADE"), primary_key=True),
 )
 
+place_dishes = Table(
+	"place_dishes",
+	Base.metadata,
+	Column("place_id", ForeignKey("places.id", ondelete="CASCADE"), primary_key=True),
+	Column("dish_id", ForeignKey("dishes.id", ondelete="CASCADE"), primary_key=True),
+)
+
 
 class Province(Base):
 	__tablename__ = "provinces"
@@ -139,6 +146,11 @@ class Place(Base):
 		back_populates="places",
 		lazy="selectin",
 	)
+	dishes: Mapped[list[Dish]] = relationship(
+		secondary=place_dishes,
+		back_populates="places",
+		lazy="selectin",
+	)
 
 	ward: Mapped[Ward | None] = relationship(back_populates="places")
 	reviews: Mapped[list[Review]] = relationship(back_populates="place", cascade="all, delete-orphan")
@@ -229,6 +241,20 @@ class BudgetRange(Base):
 	places: Mapped[list[Place]] = relationship(
 		secondary=place_budget_ranges,
 		back_populates="budget_ranges",
+		lazy="selectin",
+	)
+
+
+class Dish(Base):
+	__tablename__ = "dishes"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+	name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+	slug: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+
+	places: Mapped[list[Place]] = relationship(
+		secondary=place_dishes,
+		back_populates="dishes",
 		lazy="selectin",
 	)
 
