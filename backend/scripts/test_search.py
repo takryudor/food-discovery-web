@@ -3,7 +3,7 @@ import json
 import asyncio
 
 async def test_search():
-    url = "http://localhost:8000/api/v1/search"
+    url = "http://localhost:8000/search"
     
     # Test cases: (query, expected_place_name)
     test_cases = [

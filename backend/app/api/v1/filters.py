@@ -12,13 +12,13 @@ from app.schemas.filters import FiltersOptionsMeta, FiltersOptionsResponse
 from app.utils.cache import cache_get, cache_set
 
 
-router = APIRouter(prefix="/filters", tags=["filters"])
+router = APIRouter(prefix="/filters", tags=["Filters"])
 
 
 @router.get("/options", response_model=FiltersOptionsResponse)
 def get_filter_options(db: Session = Depends(get_db)) -> FiltersOptionsResponse:
 	"""
-	GET /api/v1/filters/options
+	GET /filters/options
 
 	Trả về danh sách option cho frontend (đổ ra UI bộ lọc):
 	- Concepts

@@ -11,12 +11,9 @@ from .api.v1.restaurants import router as restaurants_router
 settings = get_settings()
 router = APIRouter(prefix=settings.api_v1_prefix)
 
-# Include geo module routes
-router.include_router(geo_routes.router)
-router.include_router(ai_router)
 
-
-@router.get("/health", tags=["health"])
+# Health check endpoint
+@router.get("/health", tags=["Backend status"])
 def health_check() -> dict[str, str]:
 	"""
 	Health check endpoint to verify backend status.
@@ -31,8 +28,19 @@ def health_check() -> dict[str, str]:
 	}
 
 
+# Geo & Routing module routes
+router.include_router(geo_routes.router)
+
+# AI Interactions
+router.include_router(ai_router)
+
+# Search functionality
 router.include_router(search_router)
+
+# Filters
 router.include_router(filters_router)
+
+# Restaurants
 router.include_router(restaurants_router)
 
 # Alias: POST /map-markers -> POST /geo/map-markers
@@ -40,5 +48,5 @@ router.include_router(restaurants_router)
 router.include_router(
     geo_routes.router_map_markers_alias,
     prefix="",
-    tags=["map-markers"],
+	tags=["Geo & Routing"],
 )

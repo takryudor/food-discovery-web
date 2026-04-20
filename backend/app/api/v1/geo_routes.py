@@ -17,7 +17,11 @@ router_map_markers_alias = APIRouter()
 
 
 @router.post("/map-markers", response_model=GeoJSONFeatureCollection)
-@router_map_markers_alias.post("/map-markers", response_model=GeoJSONFeatureCollection)
+@router_map_markers_alias.post(
+    "/map-markers",
+    response_model=GeoJSONFeatureCollection,
+    include_in_schema=False,
+)
 async def get_map_markers(
     payload: MapMarkerRequest,
     db: Session = Depends(get_db),

@@ -75,7 +75,7 @@ async function handleApiError(response: Response): Promise<never> {
 export async function sendChatboxMessage(
   request: ChatBoxRequest
 ): Promise<ChatBoxResponse> {
-  const url = `${API_BASE_URL}/api/v1/ai/chatbox`;
+  const url = `${API_BASE_URL}/ai/chatbox`;
 
   try {
     const response = await fetch(url, {
@@ -119,7 +119,7 @@ export async function sendChatboxMessage(
 
 // Filters API
 export async function getFiltersOptions(): Promise<FiltersOptionsResponse> {
-  const url = `${API_BASE_URL}/api/v1/filters/options`;
+  const url = `${API_BASE_URL}/filters/options`;
 
   // Sử dụng mock data nếu được bật
   if (USE_MOCK_DATA) {
@@ -180,7 +180,7 @@ export async function getFiltersOptions(): Promise<FiltersOptionsResponse> {
 export async function searchRestaurants(
   request: SearchRequest
 ): Promise<SearchResponse> {
-  const url = `${API_BASE_URL}/api/v1/search`;
+  const url = `${API_BASE_URL}/search`;
 
   // Sử dụng mock data nếu được bật
   if (USE_MOCK_DATA) {
@@ -241,7 +241,7 @@ export async function searchRestaurants(
 export async function getMapMarkers(
   request: MapMarkerRequest
 ): Promise<GeoJSONFeatureCollection> {
-  const url = `${API_BASE_URL}/api/v1/map-markers`;
+  const url = `${API_BASE_URL}/map-markers`;
 
   // Sử dụng mock data nếu được bật
   if (USE_MOCK_DATA) {
@@ -296,7 +296,7 @@ export async function getMapMarkers(
 export async function getRestaurantDetail(
   restaurantId: number
 ): Promise<RestaurantDetail> {
-  const url = `${API_BASE_URL}/api/v1/restaurants/${restaurantId}`;
+  const url = `${API_BASE_URL}/restaurants/${restaurantId}`;
 
   // Sử dụng mock data nếu được bật
   if (USE_MOCK_DATA) {
@@ -353,7 +353,7 @@ export async function searchRestaurantsFulltext(
   query: string,
   limit: number = 8
 ): Promise<RestaurantSuggestion[]> {
-  const url = `${API_BASE_URL}/api/v1/restaurants/search/fulltext?q=${encodeURIComponent(query)}&limit=${limit}`;
+  const url = `${API_BASE_URL}/restaurants/search/fulltext?q=${encodeURIComponent(query)}&limit=${limit}`;
 
   // Sử dụng mock data nếu được bật
   if (USE_MOCK_DATA) {

@@ -184,7 +184,7 @@ def main() -> None:
 	print(f"Users: {session.query(User).count()}")
 	print(f"Reviews: {session.query(Review).count()}")
 	print("-" * 30)
-	print("TIP: Re-test /api/v1/search and check your PopSQL Tables.")
+print("TIP: Re-test /search and check your PopSQL Tables.")
 
 
 if __name__ == "__main__":

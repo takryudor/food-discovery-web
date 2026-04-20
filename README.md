@@ -373,7 +373,7 @@ docker-compose exec backend pytest tests/integration/
 
 ## API Overview
 
-Base URL: `https://api.foodapp.vn/api/v1` (production) / `http://localhost:8000/api/v1` (local)
+Base URL: `https://api.foodapp.vn` (production) / `http://localhost:8000` (local)
 
 Xác thực: `Authorization: Bearer <JWT>` — chỉ các endpoint có nhãn **Auth Required**.
 

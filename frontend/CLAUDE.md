@@ -234,7 +234,7 @@ docker-compose exec backend pytest tests/integration/
 
 ## API Reference (MVP Endpoints)
 
-Base URL: `http://localhost:8000/api/v1`
+Base URL: `http://localhost:8000`
 
 | Method | Path                           | Purpose                                           |
 | ------ | ------------------------------ | ------------------------------------------------- |

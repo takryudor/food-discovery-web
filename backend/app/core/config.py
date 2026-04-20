@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
 	app_name: str = "FoOdyssey API"
 	app_env: str = "development"
-	api_v1_prefix: str = "/api/v1"
+	api_v1_prefix: str = ""
 	cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 	# Database connection URL (env `DATABASE_URL` can override).
 	# Default sqlite makes local dev easier; switch to Postgres via `.env`.

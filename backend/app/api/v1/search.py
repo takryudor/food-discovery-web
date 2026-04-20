@@ -6,13 +6,13 @@ from app.schemas.search import SearchRequest, SearchResponse
 from app.services.search_service import search_places
 
 
-router = APIRouter(prefix="/search", tags=["search"])
+router = APIRouter(prefix="/search", tags=["Search"])
 
 
 @router.post("", response_model=SearchResponse)
 def post_search(payload: SearchRequest, db: Session = Depends(get_db)) -> SearchResponse:
 	"""
-	POST /api/v1/search
+	POST /search
 
 	Trách nhiệm chính:
 	- Lọc dữ liệu theo query + các bộ lọc

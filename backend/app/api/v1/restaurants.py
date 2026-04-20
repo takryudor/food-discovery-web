@@ -15,7 +15,7 @@ from app.services.restaurant_service import (
     search_restaurant_suggestions,
 )
 
-router = APIRouter(prefix="/restaurants", tags=["restaurants"])
+router = APIRouter(prefix="/restaurants", tags=["Restaurants"])
 
 
 @router.get("/{restaurant_id}", response_model=RestaurantDetailResponse)
@@ -24,7 +24,7 @@ def get_restaurant_detail(
     db: Session = Depends(get_db),
 ) -> RestaurantDetailResponse:
     """
-    GET /api/v1/restaurants/{id}
+    GET /restaurants/{id}
 
     Trả chi tiết một nhà hàng để dùng cho detail card/drawer.
     Bao gồm: thông tin cơ bản + concepts + purposes + amenities.
@@ -69,7 +69,7 @@ def get_restaurant_suggestions(
     db: Session = Depends(get_db),
 ) -> FulltextSearchResponse:
     """
-    GET /api/v1/restaurants/search/fulltext
+    GET /restaurants/search/fulltext
 
     Trả danh sách gợi ý nhanh theo tên/địa chỉ.
     Dùng cho autocomplete trên frontend.

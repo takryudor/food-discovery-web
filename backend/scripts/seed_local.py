@@ -116,8 +116,8 @@ def main() -> None:
 
 	print("Seed local completed.")
 	print("Now test:")
-	print("  - GET  http://127.0.0.1:8000/api/v1/filters/options")
-	print("  - POST http://127.0.0.1:8000/api/v1/search")
+	print("  - GET  http://127.0.0.1:8000/filters/options")
+	print("  - POST http://127.0.0.1:8000/search")
 
 
 if __name__ == "__main__":

@@ -91,7 +91,7 @@ Open:
 - Frontend: http://localhost:3000
 - Backend Swagger: http://localhost:8000/docs
 - Backend ReDoc: http://localhost:8000/redoc
-- Health check: http://localhost:8000/api/v1/health
+- Health check: http://localhost:8000/health
 
 Stop services:
 
@@ -186,7 +186,7 @@ docker compose up --build
 3. Verify quickly after each edit:
 
 - Frontend page: http://localhost:3000
-- Backend health: http://localhost:8000/api/v1/health
+- Backend health: http://localhost:8000/health
 - Backend docs: http://localhost:8000/docs
 
 4. Run backend tests when changing backend logic:
