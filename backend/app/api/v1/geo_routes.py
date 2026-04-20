@@ -27,7 +27,12 @@ async def get_map_markers(
 
     - **payload.restaurant_ids**: Danh sách ID quán ăn cần hiển thị
     """
-    return await geo_facade.get_map_markers(payload.restaurant_ids, db)
+    return await geo_facade.get_map_markers(
+        restaurant_id = payload.restaurant_ids, 
+        db = db, 
+        user_lat = payload.user_lat,  
+        user_lng = payload.user_lng 
+    )
 
 
 @router.get("/get-route/{restaurant_id}", response_model=RouteResponse)
