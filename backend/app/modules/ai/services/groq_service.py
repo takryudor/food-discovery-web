@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.infrastructure.external_apis.groq_client import GroqClient
+from app.infrastructure.groq_client import GroqClient
 from app.modules.ai.schemas import ChatBoxRequest, ChatBoxResponse, RestaurantRecommendation
 from app.services.review_service import get_relevant_reviews
 from app.services.search_service import search_places
