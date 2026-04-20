@@ -81,7 +81,7 @@ class GroqService:
         4. Validate recommendations are from DB only (no fake restaurants).
         """
         # Step 1: Lấy danh sách quán tiềm năng dựa trên từ khóa (Vị trí, tên...)
-        candidate_places = search_places(
+        _, candidate_places = search_places(
             db=db,
             query=request.message,
             location=None,
@@ -95,7 +95,7 @@ class GroqService:
         if not candidate_places:
             relaxed_query = self._sanitize_query_for_search(request.message)
             if relaxed_query and relaxed_query != request.message.strip().lower():
-                candidate_places = search_places(
+                _, candidate_places = search_places(
                     db=db,
                     query=relaxed_query,
                     location=None,
