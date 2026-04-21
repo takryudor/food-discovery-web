@@ -299,11 +299,19 @@ def _fetch_pg_text_ranks(db: Session, *, page_ids: list[int], q: str) -> dict[in
 	if not page_ids:
 		return {}
 	tsvector = _place_tsvector()
+	query_text = q.strip()
 	# websearch_to_tsquery handles multi-word queries better (like Google style).
-	# Fallback to plainto_tsquery for compatibility if needed.
-	tsq = func.websearch_to_tsquery("simple", q.strip())
+	# Fall back to plainto_tsquery on databases where websearch_to_tsquery
+	# is unavailable.
+	tsq = func.websearch_to_tsquery("simple", query_text)
 	stmt = select(Place.id, func.ts_rank_cd(tsvector, tsq)).where(Place.id.in_(page_ids))
-	rows = list(db.execute(stmt))
+	try:
+		rows = list(db.execute(stmt))
+	except sa.exc.DBAPIError:
+		db.rollback()
+		tsq = func.plainto_tsquery("simple", query_text)
+		stmt = select(Place.id, func.ts_rank_cd(tsvector, tsq)).where(Place.id.in_(page_ids))
+		rows = list(db.execute(stmt))
 	out = {int(r[0]): float(r[1] or 0.0) for r in rows}
 	mx = max(out.values(), default=0.0)
 	if mx <= 0.0:
