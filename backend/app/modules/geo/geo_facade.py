@@ -62,27 +62,6 @@ class GeoFacade:
 
         return self.map_service.create_geojson_collection(restaurants_data)
 
-        from app.db.models import Place
-        from sqlalchemy import select
-
-        stmt = select(Place).where(Place.id.in_(restaurant_ids))
-        result = db.execute(stmt)
-        restaurants = result.scalars().all()
-
-        restaurants_data = [
-            {
-                "id": r.id,
-                "lat": r.latitude,
-                "lng": r.longitude,
-                "name": r.name,
-                "avg_price": r.price_range or "N/A",
-                "rating": r.rating or 0.0,
-                "is_open_now": True,  # TODO: Implement open/close logic if needed
-            }
-            for r in restaurants
-        ]
-        return self.map_service.create_geojson_collection(restaurants_data)
-
     async def get_route(
         self,
         restaurant_id: int,

@@ -35,9 +35,9 @@ class NavCalculator:
 
         # Công thức haversine 
         a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        c = 2 * math.attan2(math.sqrt(a), math.sqrt(1 - a))
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-        distance_km = round(R * c - 1)
+        distance_km = round(R * c)
 
         # ước tính thời gian: giả sử tốc độ trung bình trong thành phố là khoảng 35 km/h (khoảng 0.5833 km/ phút)
         eta_minutes  = math.ceil(distance_km / 0.5833)
