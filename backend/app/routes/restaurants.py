@@ -100,6 +100,8 @@ def get_restaurant_suggestions(
                 id=item["id"],
                 name=item["name"],
                 address=item["address"],
+                latitude=item.get("latitude"),
+                longitude=item.get("longitude"),
             )
             for item in suggestions
         ]

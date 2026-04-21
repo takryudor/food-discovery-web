@@ -97,6 +97,9 @@ class SearchRequest(BaseModel):
 	# - "smart": Postgres dùng FTS + ts_rank ưu tiên relevance; kèm boost rating trong match_score.
 	ranking: Literal["default", "smart"] = "smart"
 
+	# Nếu true: trả thêm facet counts để FE render filter "có bao nhiêu kết quả"
+	include_facets: bool = False
+
 	@field_validator("query", mode="before")
 	@classmethod
 	def normalize_query(cls, v: object) -> str | None:
@@ -224,4 +227,5 @@ class SearchResponse(BaseModel):
 	items: list[PlaceOut]
 	limit: int
 	offset: int
+	facets: dict[str, list[dict]] | None = None
 

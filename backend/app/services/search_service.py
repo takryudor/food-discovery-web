@@ -7,14 +7,141 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..db.models import (
+	Amenity,
+	BudgetRange,
+	Concept,
 	Dish,
 	Place,
+	Purpose,
 	place_amenities,
 	place_budget_ranges,
 	place_concepts,
 	place_dishes,
 	place_purposes,
 )
+
+
+def search_facets(
+	*,
+	db: Session,
+	query: str | None,
+	location: tuple[float, float] | None,
+	radius_km: float | None,
+	concept_ids: list[int],
+	purpose_ids: list[int],
+	amenity_ids: list[int],
+	budget_range_ids: list[int],
+	dish_ids: list[int],
+	concept_match: str = "any",
+	purpose_match: str = "any",
+	amenity_match: str = "any",
+	budget_range_match: str = "any",
+	dish_match: str = "any",
+	ranking: str = "smart",
+) -> dict[str, list[dict]]:
+	"""
+	Trả facet counts cho FE: mỗi nhóm tag có bao nhiêu kết quả trong tập match hiện tại.
+
+	- Áp dụng cùng logic lọc như search_places (query + tags + geo radius).
+	- Không áp dụng limit/offset (facet là theo toàn bộ tập kết quả).
+	"""
+	dialect = db.get_bind().dialect.name
+	selected_concepts = set(concept_ids)
+	selected_purposes = set(purpose_ids)
+	selected_amenities = set(amenity_ids)
+	selected_budget_ranges = set(budget_range_ids)
+	selected_dishes = set(dish_ids)
+
+	# Base ids stmt (like search_places) but we only need Place.id
+	ids_stmt = select(Place.id).select_from(Place)
+	if query and query.strip():
+		q = query.strip()
+		like = f"%{q}%"
+		ilike = or_(
+			Place.name.ilike(like),
+			Place.description.ilike(like),
+			Place.dishes.any(Dish.name.ilike(like)),
+		)
+		if dialect == "postgresql" and ranking == "smart":
+			tsvector = _place_tsvector()
+			tsq = func.websearch_to_tsquery("simple", q)
+			fts = tsvector.op("@@")(tsq)
+			ids_stmt = ids_stmt.where(or_(fts, ilike))
+		else:
+			ids_stmt = ids_stmt.where(ilike)
+
+	# Geo radius filter (same as search_places)
+	if location is not None and radius_km is not None:
+		ulat, ulng = location
+		distance_expr = _sql_haversine_km(ulat=ulat, ulng=ulng, plat=Place.latitude, plng=Place.longitude)
+		min_lat, max_lat, min_lng, max_lng = _bbox_for_radius_km(lat=ulat, lng=ulng, radius_km=float(radius_km))
+		ids_stmt = ids_stmt.where(
+			and_(
+				Place.latitude >= min_lat,
+				Place.latitude <= max_lat,
+				Place.longitude >= min_lng,
+				Place.longitude <= max_lng,
+				distance_expr <= float(radius_km),
+			)
+		)
+
+	def _apply_tag_filter(stmt, *, selected: set[int], mode: str, assoc_table, tag_col):
+		if not selected:
+			return stmt
+		subq = select(assoc_table.c.place_id).where(tag_col.in_(selected))
+		if mode == "all":
+			subq = (
+				subq.group_by(assoc_table.c.place_id)
+				.having(func.count(func.distinct(tag_col)) == len(selected))
+			)
+		return stmt.where(Place.id.in_(subq))
+
+	ids_stmt = _apply_tag_filter(
+		ids_stmt, selected=selected_concepts, mode=concept_match, assoc_table=place_concepts, tag_col=place_concepts.c.concept_id
+	)
+	ids_stmt = _apply_tag_filter(
+		ids_stmt, selected=selected_purposes, mode=purpose_match, assoc_table=place_purposes, tag_col=place_purposes.c.purpose_id
+	)
+	ids_stmt = _apply_tag_filter(
+		ids_stmt, selected=selected_amenities, mode=amenity_match, assoc_table=place_amenities, tag_col=place_amenities.c.amenity_id
+	)
+	ids_stmt = _apply_tag_filter(
+		ids_stmt,
+		selected=selected_budget_ranges,
+		mode=budget_range_match,
+		assoc_table=place_budget_ranges,
+		tag_col=place_budget_ranges.c.budget_range_id,
+	)
+	ids_stmt = _apply_tag_filter(
+		ids_stmt, selected=selected_dishes, mode=dish_match, assoc_table=place_dishes, tag_col=place_dishes.c.dish_id
+	)
+
+	place_ids_sq = ids_stmt.subquery()
+
+	def _facet(model, assoc_table, tag_col, *, key: str):
+		stmt = (
+			select(
+				model.id.label("id"),
+				model.name.label("name"),
+				func.count(func.distinct(assoc_table.c.place_id)).label("count"),
+			)
+			.select_from(model)
+			.join(assoc_table, tag_col == model.id)
+			.where(assoc_table.c.place_id.in_(select(place_ids_sq.c.id)))
+			.group_by(model.id, model.name)
+			.order_by(sa.desc("count"), model.name.asc(), model.id.asc())
+		)
+		rows = list(db.execute(stmt).all())
+		return [dict(id=int(r[0]), name=r[1], count=int(r[2])) for r in rows]
+
+	# Assoc column objects for join (explicit, avoids relying on internal SQLAlchemy attrs)
+	return {
+		"concepts": _facet(Concept, place_concepts, place_concepts.c.concept_id, key="concepts"),
+		"purposes": _facet(Purpose, place_purposes, place_purposes.c.purpose_id, key="purposes"),
+		"amenities": _facet(Amenity, place_amenities, place_amenities.c.amenity_id, key="amenities"),
+		"budget_ranges": _facet(BudgetRange, place_budget_ranges, place_budget_ranges.c.budget_range_id, key="budget_ranges"),
+		"dishes": _facet(Dish, place_dishes, place_dishes.c.dish_id, key="dishes"),
+	}
 
 
 def _place_tsvector():
@@ -318,7 +445,8 @@ def search_places(
 	score_expr = None
 	if query and query.strip() and ranking == "smart" and dialect == "postgresql":
 		tsvector = _place_tsvector()
-		tsq = func.websearch_to_tsquery("simple", query.strip())
+		# Accent-insensitive query to match unaccented search_tsv
+		tsq = func.websearch_to_tsquery("simple", func.unaccent(sa.literal(query.strip())))
 		rank_expr = func.ts_rank_cd(tsvector, tsq)
 
 		# Multi-signal DB ordering for stable pagination:
@@ -386,11 +514,17 @@ def search_places(
 		else:
 			tag_count_expr = sa.literal(0.0)
 
+		# Dish-aware boost: if query matches a dish name, gently boost those places.
+		q_like = f"%{query.strip().lower()}%"
+		dish_hit = Place.dishes.any(func.coalesce(Dish.name_unaccent, func.lower(Dish.name)).like(q_like))
+		dish_boost_expr = sa.case((dish_hit, 1.0), else_=0.0).cast(sa.Float)
+
 		# Weights tuned to keep text relevance dominant.
 		score_expr = (
 			(rank_expr * 0.80)
 			+ (rating_expr * 0.18)
 			+ (tag_count_expr * 0.02)
+			+ (dish_boost_expr * 0.05)
 		)
 
 	if distance_expr is not None:

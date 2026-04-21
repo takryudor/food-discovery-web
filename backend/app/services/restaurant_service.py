@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db.models import Place
+from ..db.models import Dish, Place
 
 
 def get_restaurant_by_id(db: Session, restaurant_id: int) -> Place | None:
@@ -55,24 +55,37 @@ def search_restaurant_suggestions(
     q_prefix = f"{query}%"
     q_contains = f"%{query}%"
 
-    name_starts = Place.name.ilike(q_prefix)
-    name_contains = Place.name.ilike(q_contains)
-    addr_contains = Place.address.ilike(q_contains)
+    # Accent-insensitive match using stored columns (maintained by DB trigger).
+    # Note: `query` is already normalized lower() in the route.
+    name_starts = Place.name_unaccent.like(q_prefix)
+    name_contains = Place.name_unaccent.like(q_contains)
+    addr_contains = Place.address_unaccent.like(q_contains)
+    dish_contains = Place.dishes.any(Dish.name_unaccent.like(q_contains))
 
-    # Rank: 0 = name startswith, 1 = name contains, 2 = address contains, 3 = others (shouldn't happen)
+    # Rank: 0 = name startswith, 1 = name contains, 2 = address contains, 3 = dish contains, 4 = others
     rank_expr = case(
         (name_starts, 0),
         (name_contains, 1),
         (addr_contains, 2),
-        else_=3,
+        (dish_contains, 3),
+        else_=4,
     )
 
     stmt = (
-        select(Place.id, Place.name, Place.address)
-        .where(name_contains | addr_contains)
+        select(Place.id, Place.name, Place.address, Place.latitude, Place.longitude)
+        .where(name_contains | addr_contains | dish_contains)
         .order_by(rank_expr.asc(), func.length(Place.name).asc(), func.lower(Place.name).asc(), Place.id.asc())
         .limit(limit)
     )
 
     rows = list(db.execute(stmt).all())
-    return [{"id": int(r[0]), "name": r[1], "address": r[2]} for r in rows]
+    return [
+        {
+            "id": int(r[0]),
+            "name": r[1],
+            "address": r[2],
+            "latitude": float(r[3]) if r[3] is not None else None,
+            "longitude": float(r[4]) if r[4] is not None else None,
+        }
+        for r in rows
+    ]
