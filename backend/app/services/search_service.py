@@ -5,7 +5,7 @@ import math
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db.models import Place, place_amenities, place_concepts, place_purposes
+from ..db.models import Dish, Place, place_amenities, place_concepts, place_dishes, place_purposes
 
 
 def _place_tsvector():
@@ -44,6 +44,7 @@ def compute_match_score(
 	place_concept_ids: set[int],
 	place_purpose_ids: set[int],
 	place_amenity_ids: set[int],
+	place_dish_names: set[str],
 	text_relevance: float | None = None,
 ) -> float:
 	"""
@@ -70,7 +71,15 @@ def compute_match_score(
 		if q:
 			name = (place.name or "").lower()
 			desc = (place.description or "").lower()
+			
+			# Check substring in name/description
 			substr_score = 1.0 if q in name else (0.5 if q in desc else 0.0)
+			
+			# Check exact match in dishes (stronger signal)
+			dish_match = any(q in dn.lower() for dn in place_dish_names)
+			if dish_match:
+				substr_score = max(substr_score, 0.9) # High score for dish match
+
 			if text_relevance is not None:
 				# Kết hợp relevance từ DB + substring để không bỏ sót khớp ILIKE-only
 				text_score = max(float(text_relevance), substr_score)
@@ -150,7 +159,11 @@ def search_places(
 	if query and query.strip():
 		q = query.strip()
 		like = f"%{q}%"
-		ilike = or_(Place.name.ilike(like), Place.description.ilike(like))
+		ilike = or_(
+			Place.name.ilike(like), 
+			Place.description.ilike(like),
+			Place.dishes.any(Dish.name.ilike(like))
+		)
 		if dialect == "postgresql" and ranking == "smart":
 			tsvector = _place_tsvector()
 			tsq = func.plainto_tsquery("simple", q)
@@ -220,6 +233,7 @@ def search_places(
 			selectinload(Place.concepts),
 			selectinload(Place.purposes),
 			selectinload(Place.amenities),
+			selectinload(Place.dishes),
 		)
 	)
 	places = list(db.scalars(stmt).all())
@@ -254,6 +268,7 @@ def search_places(
 			place_concept_ids=place_concept_ids,
 			place_purpose_ids=place_purpose_ids,
 			place_amenity_ids=place_amenity_ids,
+			place_dish_names={d.name for d in place.dishes},
 			text_relevance=tr,
 		)
 

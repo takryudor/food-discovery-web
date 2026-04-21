@@ -91,7 +91,7 @@ Open:
 - Frontend: http://localhost:3000
 - Backend Swagger: http://localhost:8000/docs
 - Backend ReDoc: http://localhost:8000/redoc
-- Health check: http://localhost:8000/api/v1/health
+- Health check: http://localhost:8000/health
 
 Stop services:
 
@@ -186,7 +186,7 @@ docker compose up --build
 3. Verify quickly after each edit:
 
 - Frontend page: http://localhost:3000
-- Backend health: http://localhost:8000/api/v1/health
+- Backend health: http://localhost:8000/health
 - Backend docs: http://localhost:8000/docs
 
 4. Run backend tests when changing backend logic:
@@ -215,15 +215,43 @@ Current backend scaffold is still mostly structure-only beyond the bootstrap:
 frontend/
   src/
     app/
+      page.tsx
+      map/page.tsx
+      explore/page.tsx
+      _components/
+      providers.tsx
     components/
+      auth/
+      common/
+      feedback/
+      map/
+      restaurant/
+        components/
+      providers/
+      ui/
     hooks/
     lib/
+      api/
+        client.ts
+        ai.ts
+        filters.ts
+        search.ts
+        geo.ts
+        restaurant.ts
+        index.ts
+      api.ts
     store/
+      uiStore.ts
+      searchStore.ts
+      filterStore.ts
+      mapStore.ts
 ```
 
-Main page entry is now:
+Main routes are now:
 
 - `frontend/src/app/page.tsx`
+- `frontend/src/app/map/page.tsx`
+- `frontend/src/app/explore/page.tsx`
 
 ## 9) Quick Troubleshooting
 

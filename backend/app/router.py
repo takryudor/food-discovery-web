@@ -1,22 +1,15 @@
 from fastapi import APIRouter
 
 from .core.config import get_settings
-from .api.v1 import geo_routes
-from .api.v1.ai_routes import router as ai_router
-from .api.v1.filters import router as filters_router
-from .api.v1.search import router as search_router
-from .api.v1.restaurants import router as restaurants_router
+from .routes import geo, ai, filters, search, restaurants
 
 
 settings = get_settings()
 router = APIRouter(prefix=settings.api_v1_prefix)
 
-# Include geo module routes
-router.include_router(geo_routes.router)
-router.include_router(ai_router)
 
-
-@router.get("/health", tags=["health"])
+# Health check endpoint
+@router.get("/health", tags=["Backend status"])
 def health_check() -> dict[str, str]:
 	"""
 	Health check endpoint to verify backend status.
@@ -31,14 +24,25 @@ def health_check() -> dict[str, str]:
 	}
 
 
-router.include_router(search_router)
-router.include_router(filters_router)
-router.include_router(restaurants_router)
+# Geo & Routing module routes
+router.include_router(geo.router)
+
+# AI Interactions
+router.include_router(ai.router)
+
+# Search functionality
+router.include_router(search.router)
+
+# Filters
+router.include_router(filters.router)
+
+# Restaurants
+router.include_router(restaurants.router)
 
 # Alias: POST /map-markers -> POST /geo/map-markers
 # Để tương thích với spec MVP mà vẫn giữ endpoint gốc /geo/map-markers
 router.include_router(
-    geo_routes.router_map_markers_alias,
+	geo.router_map_markers_alias,
     prefix="",
-    tags=["map-markers"],
+	tags=["Geo & Routing"],
 )
