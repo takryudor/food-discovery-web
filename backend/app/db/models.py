@@ -5,6 +5,7 @@ from typing import Optional
 
 from sqlalchemy import Column, Float, ForeignKey, Integer, String, Table, Text, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -109,11 +110,16 @@ class Place(Base):
 	# Các field chính phục vụ search
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 	name: Mapped[str] = mapped_column(String(255), index=True)
+	# Accent-insensitive helper columns for autocomplete (maintained by DB trigger).
+	name_unaccent: Mapped[str | None] = mapped_column(Text, nullable=True)
 	description: Mapped[str | None] = mapped_column(Text, nullable=True)
+	# Full-text search vector (PostgreSQL). Maintained by DB trigger (Alembic migration).
+	search_tsv: Mapped[TSVECTOR | None] = mapped_column(TSVECTOR, nullable=True)
 	
 	# Liên kết địa chỉ có cấu trúc
 	ward_id: Mapped[int | None] = mapped_column(ForeignKey("wards.id"), nullable=True, index=True)
 	address: Mapped[str | None] = mapped_column(String(512), nullable=True) # Số nhà, tên đường
+	address_unaccent: Mapped[str | None] = mapped_column(Text, nullable=True)
 	
 	latitude: Mapped[float] = mapped_column(Float)
 	longitude: Mapped[float] = mapped_column(Float)
@@ -250,6 +256,8 @@ class Dish(Base):
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 	name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+	# Accent-insensitive helper column for autocomplete (maintained by DB trigger).
+	name_unaccent: Mapped[str | None] = mapped_column(Text, nullable=True)
 	slug: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
 
 	places: Mapped[list[Place]] = relationship(

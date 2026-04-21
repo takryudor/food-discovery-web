@@ -9,9 +9,23 @@ from .common import IdName
 
 
 class FilterGroup(BaseModel):
-	key: Literal["concepts", "purposes", "amenities", "budget_ranges"]
+	key: Literal["concepts", "purposes", "amenities", "budget_ranges", "dishes"]
 	label: str
+	placeholder: str | None = None
 	items: list[IdName]
+	items_count: int = 0
+
+
+class FiltersOptionsLookup(BaseModel):
+	"""
+	Lookup tables giúp frontend map ID -> tag nhanh, không cần loop O(n) mỗi lần render.
+	"""
+
+	concepts: dict[int, IdName] = Field(default_factory=dict)
+	purposes: dict[int, IdName] = Field(default_factory=dict)
+	amenities: dict[int, IdName] = Field(default_factory=dict)
+	budget_ranges: dict[int, IdName] = Field(default_factory=dict)
+	dishes: dict[int, IdName] = Field(default_factory=dict)
 
 
 class FiltersOptionsMeta(BaseModel):
@@ -27,6 +41,10 @@ class FiltersOptionsMeta(BaseModel):
 	generated_at: datetime
 	cache_ttl_seconds: int
 	match_modes: list[Literal["any", "all"]] = Field(default_factory=lambda: ["any", "all"])
+	default_match_mode: Literal["any", "all"] = "any"
+	group_order: list[Literal["concepts", "purposes", "amenities", "budget_ranges", "dishes"]] = Field(
+		default_factory=lambda: ["concepts", "purposes", "amenities", "budget_ranges", "dishes"]
+	)
 
 
 class FiltersOptionsResponse(BaseModel):
@@ -41,5 +59,7 @@ class FiltersOptionsResponse(BaseModel):
 	purposes: list[IdName]
 	amenities: list[IdName]
 	budget_ranges: list[IdName]
+	dishes: list[IdName]
 	groups: list[FilterGroup]
+	lookup: FiltersOptionsLookup
 
