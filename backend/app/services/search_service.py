@@ -20,6 +20,7 @@ from ..db.models import (
 	place_purposes,
 )
 
+# Large sentinel used to push rows with unknown distance to the end.
 MISSING_DISTANCE_SENTINEL = 10**9
 
 
@@ -97,21 +98,19 @@ def search_facets(
 					Place.longitude <= max_lng,
 				)
 			)
-			candidate_ids = list(db.scalars(ids_stmt).all())
-			if candidate_ids:
-				coord_rows = list(
-					db.execute(select(Place.id, Place.latitude, Place.longitude).where(Place.id.in_(candidate_ids))).all()
-				)
-				within_radius_ids = []
-				for pid, plat, plng in coord_rows:
-					if plat is None or plng is None:
-						continue
-					if haversine_km(ulat, ulng, float(plat), float(plng)) <= float(radius_km):
-						within_radius_ids.append(int(pid))
-				if within_radius_ids:
-					ids_stmt = ids_stmt.where(Place.id.in_(within_radius_ids))
-				else:
-					ids_stmt = ids_stmt.where(sa.false())
+			coord_rows = list(
+				db.execute(
+					select(Place.id, Place.latitude, Place.longitude).where(Place.id.in_(ids_stmt.subquery()))
+				).all()
+			)
+			within_radius_ids = []
+			for pid, plat, plng in coord_rows:
+				if plat is None or plng is None:
+					continue
+				if haversine_km(ulat, ulng, float(plat), float(plng)) <= float(radius_km):
+					within_radius_ids.append(int(pid))
+			if within_radius_ids:
+				ids_stmt = ids_stmt.where(Place.id.in_(within_radius_ids))
 			else:
 				ids_stmt = ids_stmt.where(sa.false())
 
@@ -490,12 +489,11 @@ def search_places(
 					Place.longitude <= max_lng,
 				)
 			)
-		all_ids = list(db.scalars(ids_stmt.order_by(Place.id.asc())).all())
-		if not all_ids:
-			return 0, []
+		candidate_ids_sq = ids_stmt.subquery()
 		stmt = (
 			select(Place)
-			.where(Place.id.in_(all_ids))
+			.join(candidate_ids_sq, candidate_ids_sq.c.id == Place.id)
+			.order_by(Place.id.asc())
 			.options(
 				selectinload(Place.concepts),
 				selectinload(Place.purposes),
@@ -504,9 +502,9 @@ def search_places(
 				selectinload(Place.dishes),
 			)
 		)
-		all_places = list(db.scalars(stmt).all())
-		places_by_id = {p.id: p for p in all_places}
-		ordered_places = [places_by_id[i] for i in all_ids if i in places_by_id]
+		ordered_places = list(db.scalars(stmt).all())
+		if not ordered_places:
+			return 0, []
 		results: list[dict] = []
 		for place in ordered_places:
 			distance_km = None
@@ -540,7 +538,10 @@ def search_places(
 					"match_score": match_score,
 				}
 			)
-		results.sort(key=lambda x: ((x["distance_km"] or MISSING_DISTANCE_SENTINEL), -x["match_score"], x["id"]))
+		def _distance_first_sort_key(item: dict):
+			return ((item["distance_km"] or MISSING_DISTANCE_SENTINEL), -item["match_score"], item["id"])
+
+		results.sort(key=_distance_first_sort_key)
 		total = len(results)
 		return total, results[offset : offset + limit]
 
