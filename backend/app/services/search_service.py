@@ -20,6 +20,8 @@ from ..db.models import (
 	place_purposes,
 )
 
+MISSING_DISTANCE_SENTINEL = 10**9
+
 
 def search_facets(
 	*,
@@ -86,6 +88,15 @@ def search_facets(
 				)
 			)
 		else:
+			min_lat, max_lat, min_lng, max_lng = _bbox_for_radius_km(lat=ulat, lng=ulng, radius_km=float(radius_km))
+			ids_stmt = ids_stmt.where(
+				and_(
+					Place.latitude >= min_lat,
+					Place.latitude <= max_lat,
+					Place.longitude >= min_lng,
+					Place.longitude <= max_lng,
+				)
+			)
 			candidate_ids = list(db.scalars(ids_stmt).all())
 			if candidate_ids:
 				coord_rows = list(
@@ -469,6 +480,16 @@ def search_places(
 
 	if location is not None and dialect != "postgresql":
 		ulat, ulng = location
+		if radius_km is not None:
+			min_lat, max_lat, min_lng, max_lng = _bbox_for_radius_km(lat=ulat, lng=ulng, radius_km=float(radius_km))
+			ids_stmt = ids_stmt.where(
+				and_(
+					Place.latitude >= min_lat,
+					Place.latitude <= max_lat,
+					Place.longitude >= min_lng,
+					Place.longitude <= max_lng,
+				)
+			)
 		all_ids = list(db.scalars(ids_stmt.order_by(Place.id.asc())).all())
 		if not all_ids:
 			return 0, []
@@ -519,7 +540,7 @@ def search_places(
 					"match_score": match_score,
 				}
 			)
-		results.sort(key=lambda x: ((x["distance_km"] or 10**9), -x["match_score"], x["id"]))
+		results.sort(key=lambda x: ((x["distance_km"] or MISSING_DISTANCE_SENTINEL), -x["match_score"], x["id"]))
 		total = len(results)
 		return total, results[offset : offset + limit]
 
