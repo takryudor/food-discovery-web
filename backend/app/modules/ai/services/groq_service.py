@@ -72,6 +72,20 @@ class GroqService:
         # Fallback cho dữ liệu chưa map đủ ward/district/province.
         return self._is_hcm_address(address)
 
+    def _is_unsupported_location(self, text: str) -> bool:
+        """
+        Kiểm tra xem câu hỏi có đề cập đến các tỉnh thành khác ngoài TP.HCM hay không.
+        Sử dụng Early Exit để tiết kiệm chi phí API.
+        """
+        unsupported_patterns = [
+            r"\bhà nội\b", r"\bhanoi\b", r"\bđà nẵng\b", r"\bda nang\b",
+            r"\bhải phòng\b", r"\bhai phong\b", r"\bcần thơ\b", r"\bcan tho\b",
+            r"\bnha trang\b", r"\bđà lạt\b", r"\bda lat\b", r"\bvũng tàu\b", r"\bvung tau\b",
+            r"\bhuế\b", r"\bphú quốc\b", r"\bphu quoc\b"
+        ]
+        text_lower = text.lower()
+        return any(re.search(pattern, text_lower) for pattern in unsupported_patterns)
+
     def process_chat(self, request: ChatBoxRequest, db: Session) -> ChatBoxResponse:
         """
         Processes the incoming chat request using a Hybrid Retrieval approach:
@@ -80,6 +94,13 @@ class GroqService:
         3. Send rich context to AI and enrich the final response.
         4. Validate recommendations are from DB only (no fake restaurants).
         """
+        # Early Exit: Chặn các vùng miền không hỗ trợ (Tiết kiệm Token & Chi phí)
+        if self._is_unsupported_location(request.message):
+            return ChatBoxResponse(
+                recommendations=[],
+                message="Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
+            )
+
         # Step 1: Lấy danh sách quán tiềm năng dựa trên từ khóa (Vị trí, tên...)
         _, candidate_places = search_places(
             db=db,
@@ -162,12 +183,14 @@ class GroqService:
                             name=place.name,
                             address=place.address or "Địa chỉ đang cập nhật",
                             reason=reason,
-                            restaurant_id=res_id  # Thêm ID để FE sử dụng nếu cần
+                            restaurant_id=res_id,  # Thêm ID để FE sử dụng nếu cần
+                            latitude=place.latitude,
+                            longitude=place.longitude
                         )
                     )
                 else:
                     if not notification_message:
-                        notification_message = "Hiện tại chưa có dữ liệu về loại món ăn này trong khu vực được hỗ trợ."
+                        notification_message = "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
             else:
                 # AI tự gợi ý không có ID: thử ghép theo tên từ quán thực trong DB trước khi từ chối.
                 matched_place = self._find_hcm_place_by_name(db, hcm_places, rec.get("name"))
@@ -178,10 +201,12 @@ class GroqService:
                             address=matched_place.address or "Địa chỉ đang cập nhật",
                             reason=reason or "Gợi ý dựa trên dữ liệu có sẵn trong hệ thống.",
                             restaurant_id=matched_place.id,
+                            latitude=matched_place.latitude,
+                            longitude=matched_place.longitude
                         )
                     )
                 elif not notification_message:
-                    notification_message = "Hiện tại chưa có đầy đủ dữ liệu để đề xuất về loại món ăn này."
+                    notification_message = "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
 
         # Nếu AI không tuân thủ format nhưng search DB có kết quả, trả fallback từ DB để FE vẫn hiển thị.
         if not recommendations and hcm_places:
@@ -196,6 +221,8 @@ class GroqService:
                         address=place.address or "Địa chỉ đang cập nhật",
                         reason="Gợi ý dựa trên dữ liệu có sẵn trong hệ thống.",
                         restaurant_id=place.id,
+                        latitude=place.latitude,
+                        longitude=place.longitude
                     )
                 )
 
@@ -205,7 +232,7 @@ class GroqService:
         # Nếu không có recommendations thực, trả về thông báo
         if not recommendations and not notification_message:
             # Fallback: không có dữ liệu nào
-            notification_message = "Hiện tại chưa có đầy đủ dữ liệu để đề xuất. Xin bạn hãy thử lại."
+            notification_message = "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
 
         return ChatBoxResponse(
             recommendations=recommendations,
