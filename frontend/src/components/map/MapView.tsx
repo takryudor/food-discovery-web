@@ -6,9 +6,8 @@ import {
   useCallback,
   useMemo,
   useRef,
-  lazy,
-  Suspense,
 } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -47,8 +46,18 @@ import { useFilterStore } from "@/store/filterStore";
 import { useMapStore } from "@/store/mapStore";
 import { useSearchStore } from "@/store/searchStore";
 
-// Lazy load MapComponent to avoid SSR issues with Leaflet
-const MapComponent = lazy(() => import("./MapComponent"));
+// Load Leaflet map only on client to avoid `window is not defined` during SSR.
+const MapComponent = dynamic(() => import("./MapComponent"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+        <p className="text-neutral-600">Đang tải bản đồ...</p>
+      </div>
+    </div>
+  ),
+});
 
 interface MapViewProps {
   onBackHome: () => void;
@@ -168,12 +177,17 @@ export default function MapView({
     RestaurantSuggestion[]
   >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [useMockData, setUseMockData] = useState(getUseMockData());
+  // Keep SSR and first client render consistent, then sync from localStorage on mount.
+  const [useMockData, setUseMockData] = useState(true);
   const [mockSwitchMessage, setMockSwitchMessage] = useState<string | null>(
     null,
   );
 
   const radiusOptions = [3, 5, 8, 10];
+
+  useEffect(() => {
+    setUseMockData(getUseMockData());
+  }, []);
 
   // Clear markers when mock mode changes
   const handleMockToggle = () => {
@@ -401,27 +415,16 @@ export default function MapView({
 
       {/* Map container with real Leaflet map */}
       <div className="absolute inset-0">
-        <Suspense
-          fallback={
-            <div className="w-full h-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900">
-              <div className="flex flex-col items-center gap-4">
-                <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
-                <p className="text-neutral-600">Đang tải bản đồ...</p>
-              </div>
-            </div>
-          }
-        >
-          <MapComponent
-            userLocation={userLocation}
-            markers={markersForMap}
-            selectedMarkerId={selectedMarkerId}
-            onMarkerClick={handleMarkerClick}
-            isLoading={isLoading}
-            mapLeafletRef={mapLeafletRef}
-            syncCenterToUser={!isSettingLocation}
-            hideUserMarker={isSettingLocation}
-          />
-        </Suspense>
+        <MapComponent
+          userLocation={userLocation}
+          markers={markersForMap}
+          selectedMarkerId={selectedMarkerId}
+          onMarkerClick={handleMarkerClick}
+          isLoading={isLoading}
+          mapLeafletRef={mapLeafletRef}
+          syncCenterToUser={!isSettingLocation}
+          hideUserMarker={isSettingLocation}
+        />
       </div>
 
       <AnimatePresence>

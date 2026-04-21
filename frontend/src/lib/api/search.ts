@@ -14,14 +14,22 @@ import {
 export async function searchRestaurants(
   request: SearchRequest,
 ): Promise<SearchResponse> {
+  const payload: SearchRequest = {
+    ...request,
+    concept_ids: request.concept_ids ?? [],
+    purpose_ids: request.purpose_ids ?? [],
+    amenity_ids: request.amenity_ids ?? [],
+    budget_range_ids: request.budget_range_ids ?? [],
+  };
+
   if (isMockDataEnabled()) {
     return new Promise((resolve) => {
       const results = filterRestaurants(
-        request.concept_ids,
-        request.purpose_ids,
-        request.amenity_ids,
-        request.budget_range_ids,
-        request.query,
+        payload.concept_ids,
+        payload.purpose_ids,
+        payload.amenity_ids,
+        payload.budget_range_ids,
+        payload.query,
       );
       setTimeout(() => resolve(results), 300);
     });
@@ -31,7 +39,7 @@ export async function searchRestaurants(
     const data = await apiFetch<SearchResponse>({
       path: "/search",
       method: "POST",
-      body: request,
+      body: payload,
     });
 
     if (!data.items || !Array.isArray(data.items)) {
@@ -45,7 +53,7 @@ export async function searchRestaurants(
     }
 
     const networkError: ApiError = {
-      message: "Khong the thuc hien tim kiem. Vui long kiem tra ket noi backend.",
+      message: "Không thể thực hiện tìm kiếm. Vui lòng kiểm tra kết nối backend.",
     };
     throw networkError;
   }

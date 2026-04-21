@@ -20,16 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-        bind = op.get_bind()
-        if bind.dialect.name != "postgresql":
-                return
+	bind = op.get_bind()
+	if bind.dialect.name != "postgresql":
+		return
 
-        op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_places_latitude ON places (latitude)"))
-        op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_places_longitude ON places (longitude)"))
-        op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_places_lat_lng ON places (latitude, longitude)"))
-        op.execute(sa.text("ANALYZE places"))
+	op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_places_latitude ON places (latitude)"))
+	op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_places_longitude ON places (longitude)"))
+	op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_places_lat_lng ON places (latitude, longitude)"))
+	op.execute(sa.text("ANALYZE places"))
 
 
 def downgrade() -> None:
-        # Keep downgrade minimal (indexes can remain).
-        pass
+	# Keep downgrade minimal (indexes can remain).
+	pass

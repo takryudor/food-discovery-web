@@ -5,6 +5,23 @@ import {
   isMockDataEnabled,
 } from "@/lib/api/client";
 
+type FilterGroupLike = {
+  key?: string;
+  items?: unknown;
+};
+
+function normalizeTagList(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
+function getGroupItems(data: unknown, key: string) {
+  const groups = (data as { groups?: FilterGroupLike[] })?.groups;
+  if (!Array.isArray(groups)) return [];
+
+  const group = groups.find((item) => item?.key === key);
+  return normalizeTagList(group?.items);
+}
+
 export async function getFiltersOptions(): Promise<FiltersOptionsResponse> {
   if (isMockDataEnabled()) {
     return new Promise((resolve) => {
@@ -18,14 +35,22 @@ export async function getFiltersOptions(): Promise<FiltersOptionsResponse> {
       method: "GET",
     });
 
-    if (!data.concepts || !Array.isArray(data.concepts)) {
-      data.concepts = [];
+    data.concepts = normalizeTagList(data.concepts);
+    data.purposes = normalizeTagList(data.purposes);
+    data.amenities = normalizeTagList(data.amenities);
+    data.budget_ranges = normalizeTagList(data.budget_ranges);
+
+    if (data.concepts.length === 0) {
+      data.concepts = getGroupItems(data, "concepts");
     }
-    if (!data.purposes || !Array.isArray(data.purposes)) {
-      data.purposes = [];
+    if (data.purposes.length === 0) {
+      data.purposes = getGroupItems(data, "purposes");
     }
-    if (!data.amenities || !Array.isArray(data.amenities)) {
-      data.amenities = [];
+    if (data.amenities.length === 0) {
+      data.amenities = getGroupItems(data, "amenities");
+    }
+    if (data.budget_ranges.length === 0) {
+      data.budget_ranges = getGroupItems(data, "budget_ranges");
     }
 
     return data;

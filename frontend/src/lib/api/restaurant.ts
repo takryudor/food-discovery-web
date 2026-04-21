@@ -18,7 +18,7 @@ export async function getRestaurantDetail(
         }
 
         const error: ApiError = {
-          message: "Khong tim thay nha hang.",
+          message: "Không tìm thấy nhà hàng.",
           status: 404,
         };
         reject(error);
@@ -38,7 +38,7 @@ export async function getRestaurantDetail(
     }
 
     const networkError: ApiError = {
-      message: "Loi ket noi. Vui long kiem tra mang va thu lai.",
+      message: "Lỗi kết nối. Vui lòng kiểm tra mạng và thử lại.",
     };
     throw networkError;
   }

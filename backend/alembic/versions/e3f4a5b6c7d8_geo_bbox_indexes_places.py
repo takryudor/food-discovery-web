@@ -20,22 +20,22 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-        bind = op.get_bind()
-        if bind.dialect.name != "postgresql":
-                return
+	bind = op.get_bind()
+	if bind.dialect.name != "postgresql":
+		return
 
-        op.create_index("ix_places_latitude", "places", ["latitude"], unique=False)
-        op.create_index("ix_places_longitude", "places", ["longitude"], unique=False)
-        # Helpful for combined bbox filters; planner may choose either single or composite.
-        op.create_index("ix_places_lat_lng", "places", ["latitude", "longitude"], unique=False)
+	op.create_index("ix_places_latitude", "places", ["latitude"], unique=False)
+	op.create_index("ix_places_longitude", "places", ["longitude"], unique=False)
+	# Helpful for combined bbox filters; planner may choose either single or composite.
+	op.create_index("ix_places_lat_lng", "places", ["latitude", "longitude"], unique=False)
 
-        op.execute(sa.text("ANALYZE places"))
+	op.execute(sa.text("ANALYZE places"))
 
 
 def downgrade() -> None:
-        bind = op.get_bind()
-        if bind.dialect.name != "postgresql":
-                return
-        op.drop_index("ix_places_lat_lng", table_name="places")
-        op.drop_index("ix_places_longitude", table_name="places")
-        op.drop_index("ix_places_latitude", table_name="places")
+	bind = op.get_bind()
+	if bind.dialect.name != "postgresql":
+		return
+	op.drop_index("ix_places_lat_lng", table_name="places")
+	op.drop_index("ix_places_longitude", table_name="places")
+	op.drop_index("ix_places_latitude", table_name="places")
