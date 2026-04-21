@@ -9,6 +9,8 @@ class RestaurantRecommendation(BaseModel):
     address: str
     reason: str
     restaurant_id: Optional[int] = None  # ID trong DB để sử dụng nếu cần
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 class ChatBoxResponse(BaseModel):
     recommendations: list[RestaurantRecommendation]
