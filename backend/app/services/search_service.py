@@ -98,9 +98,12 @@ def search_facets(
 					Place.longitude <= max_lng,
 				)
 			)
+			candidate_ids_sq = ids_stmt.subquery()
 			coord_rows = list(
 				db.execute(
-					select(Place.id, Place.latitude, Place.longitude).where(Place.id.in_(ids_stmt.subquery()))
+					select(Place.id, Place.latitude, Place.longitude).join(
+						candidate_ids_sq, candidate_ids_sq.c.id == Place.id
+					)
 				).all()
 			)
 			within_radius_ids = []
@@ -538,10 +541,10 @@ def search_places(
 					"match_score": match_score,
 				}
 			)
-		def _distance_first_sort_key(item: dict):
+		def _distance_then_score_sort_key(item: dict):
 			return ((item["distance_km"] or MISSING_DISTANCE_SENTINEL), -item["match_score"], item["id"])
 
-		results.sort(key=_distance_first_sort_key)
+		results.sort(key=_distance_then_score_sort_key)
 		total = len(results)
 		return total, results[offset : offset + limit]
 
