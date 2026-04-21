@@ -55,12 +55,20 @@ def search_restaurant_suggestions(
     q_prefix = f"{query}%"
     q_contains = f"%{query}%"
 
-    # Accent-insensitive match using stored columns (maintained by DB trigger).
-    # Note: `query` is already normalized lower() in the route.
-    name_starts = Place.name_unaccent.like(q_prefix)
-    name_contains = Place.name_unaccent.like(q_contains)
-    addr_contains = Place.address_unaccent.like(q_contains)
-    dish_contains = Place.dishes.any(Dish.name_unaccent.like(q_contains))
+    dialect = db.get_bind().dialect.name
+    if dialect == "postgresql":
+        name_col = func.coalesce(Place.name_unaccent, func.lower(Place.name))
+        addr_col = func.coalesce(Place.address_unaccent, func.lower(Place.address))
+        dish_col = func.coalesce(Dish.name_unaccent, func.lower(Dish.name))
+    else:
+        name_col = func.lower(Place.name)
+        addr_col = func.lower(Place.address)
+        dish_col = func.lower(Dish.name)
+
+    name_starts = name_col.like(q_prefix)
+    name_contains = name_col.like(q_contains)
+    addr_contains = addr_col.like(q_contains)
+    dish_contains = Place.dishes.any(dish_col.like(q_contains))
 
     # Rank: 0 = name startswith, 1 = name contains, 2 = address contains, 3 = dish contains, 4 = others
     rank_expr = case(

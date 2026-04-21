@@ -73,17 +73,36 @@ def search_facets(
 	# Geo radius filter (same as search_places)
 	if location is not None and radius_km is not None:
 		ulat, ulng = location
-		distance_expr = _sql_haversine_km(ulat=ulat, ulng=ulng, plat=Place.latitude, plng=Place.longitude)
-		min_lat, max_lat, min_lng, max_lng = _bbox_for_radius_km(lat=ulat, lng=ulng, radius_km=float(radius_km))
-		ids_stmt = ids_stmt.where(
-			and_(
-				Place.latitude >= min_lat,
-				Place.latitude <= max_lat,
-				Place.longitude >= min_lng,
-				Place.longitude <= max_lng,
-				distance_expr <= float(radius_km),
+		if dialect == "postgresql":
+			distance_expr = _sql_haversine_km(ulat=ulat, ulng=ulng, plat=Place.latitude, plng=Place.longitude)
+			min_lat, max_lat, min_lng, max_lng = _bbox_for_radius_km(lat=ulat, lng=ulng, radius_km=float(radius_km))
+			ids_stmt = ids_stmt.where(
+				and_(
+					Place.latitude >= min_lat,
+					Place.latitude <= max_lat,
+					Place.longitude >= min_lng,
+					Place.longitude <= max_lng,
+					distance_expr <= float(radius_km),
+				)
 			)
-		)
+		else:
+			candidate_ids = list(db.scalars(ids_stmt).all())
+			if candidate_ids:
+				coord_rows = list(
+					db.execute(select(Place.id, Place.latitude, Place.longitude).where(Place.id.in_(candidate_ids))).all()
+				)
+				within_radius_ids = []
+				for pid, plat, plng in coord_rows:
+					if plat is None or plng is None:
+						continue
+					if haversine_km(ulat, ulng, float(plat), float(plng)) <= float(radius_km):
+						within_radius_ids.append(int(pid))
+				if within_radius_ids:
+					ids_stmt = ids_stmt.where(Place.id.in_(within_radius_ids))
+				else:
+					ids_stmt = ids_stmt.where(sa.false())
+			else:
+				ids_stmt = ids_stmt.where(sa.false())
 
 	def _apply_tag_filter(stmt, *, selected: set[int], mode: str, assoc_table, tag_col):
 		if not selected:
@@ -328,8 +347,8 @@ def search_places(
 	concept_ids: list[int],
 	purpose_ids: list[int],
 	amenity_ids: list[int],
-	budget_range_ids: list[int],
-	dish_ids: list[int],
+	budget_range_ids: list[int] | None = None,
+	dish_ids: list[int] | None = None,
 	concept_match: str = "any",
 	purpose_match: str = "any",
 	amenity_match: str = "any",
@@ -350,11 +369,11 @@ def search_places(
 	selected_concepts = set(concept_ids)
 	selected_purposes = set(purpose_ids)
 	selected_amenities = set(amenity_ids)
-	selected_budget_ranges = set(budget_range_ids)
-	selected_dishes = set(dish_ids)
+	selected_budget_ranges = set(budget_range_ids or [])
+	selected_dishes = set(dish_ids or [])
 
 	distance_expr = None
-	if location is not None:
+	if location is not None and dialect == "postgresql":
 		ulat, ulng = location
 		distance_expr = _sql_haversine_km(ulat=ulat, ulng=ulng, plat=Place.latitude, plng=Place.longitude).label(
 			"distance_km"
@@ -447,6 +466,62 @@ def search_places(
 		assoc_table=place_dishes,
 		tag_col=place_dishes.c.dish_id,
 	)
+
+	if location is not None and dialect != "postgresql":
+		ulat, ulng = location
+		all_ids = list(db.scalars(ids_stmt.order_by(Place.id.asc())).all())
+		if not all_ids:
+			return 0, []
+		stmt = (
+			select(Place)
+			.where(Place.id.in_(all_ids))
+			.options(
+				selectinload(Place.concepts),
+				selectinload(Place.purposes),
+				selectinload(Place.amenities),
+				selectinload(Place.budget_ranges),
+				selectinload(Place.dishes),
+			)
+		)
+		all_places = list(db.scalars(stmt).all())
+		places_by_id = {p.id: p for p in all_places}
+		ordered_places = [places_by_id[i] for i in all_ids if i in places_by_id]
+		results: list[dict] = []
+		for place in ordered_places:
+			distance_km = None
+			if place.latitude is not None and place.longitude is not None:
+				distance_km = haversine_km(ulat, ulng, float(place.latitude), float(place.longitude))
+			if radius_km is not None and (distance_km is None or distance_km > float(radius_km)):
+				continue
+			place_concept_ids = {c.id for c in place.concepts}
+			place_purpose_ids = {p.id for p in place.purposes}
+			place_amenity_ids = {a.id for a in place.amenities}
+			match_score = compute_match_score(
+				place=place,
+				query=query,
+				concept_ids=selected_concepts,
+				purpose_ids=selected_purposes,
+				amenity_ids=selected_amenities,
+				place_concept_ids=place_concept_ids,
+				place_purpose_ids=place_purpose_ids,
+				place_amenity_ids=place_amenity_ids,
+				place_dish_names={d.name for d in place.dishes},
+				text_relevance=None,
+			)
+			results.append(
+				{
+					"id": place.id,
+					"name": place.name,
+					"address": place.address,
+					"latitude": place.latitude,
+					"longitude": place.longitude,
+					"distance_km": distance_km,
+					"match_score": match_score,
+				}
+			)
+		results.sort(key=lambda x: ((x["distance_km"] or 10**9), -x["match_score"], x["id"]))
+		total = len(results)
+		return total, results[offset : offset + limit]
 
 	total = int(db.scalar(select(func.count()).select_from(ids_stmt.subquery())) or 0)
 
@@ -620,9 +695,7 @@ def search_places(
 			}
 		)
 
-	if location is not None:
-		results.sort(key=lambda x: ((x["distance_km"] or 10**9), -x["match_score"]))
-	elif ranking == "smart" and query and query.strip() and dialect == "postgresql":
+	if ranking == "smart" and query and query.strip() and dialect == "postgresql":
 		# Giữ thứ tự theo ts_rank (đã phản ánh relevance trên toàn DB cho trang hiện tại).
 		pass
 	else:
