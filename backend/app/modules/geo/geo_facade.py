@@ -2,6 +2,7 @@ from typing import List
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select 
+from typing import Optional
 
 from app.modules.geo.services.map_service import MapService
 from app.modules.geo.services.nav_calculator import NavCalculator
