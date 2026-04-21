@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { Bot, Send, ImagePlus, ChevronDown, MapPin, X, Sparkles, Camera, Utensils, Loader2 } from "lucide-react";
-import { useLanguage } from "./LanguageContext";
-import { sendChatboxMessage, searchRestaurants } from "@/lib/api";
+import { useLanguage } from "@/components/providers/LanguageContext";
+import { sendChatboxMessage } from "@/lib/api/ai";
+import { searchRestaurants } from "@/lib/api/search";
 import type { RestaurantRecommendation } from "@/lib/types";
 
 type AIMode = "restaurant" | "image" | "assistant";
@@ -379,7 +381,16 @@ export default function OdysseusAI({
                     )}
                     <div className={`max-w-[85%] space-y-2 ${msg.role === 'user' ? 'items-end' : ''}`}>
                       {msg.imageUrl && (
-                        <img src={msg.imageUrl} alt="" className="w-48 h-36 object-cover rounded-2xl" />
+                        <div className="relative h-36 w-48 overflow-hidden rounded-2xl">
+                          <Image
+                            src={msg.imageUrl}
+                            alt=""
+                            fill
+                            unoptimized
+                            sizes="192px"
+                            className="object-cover"
+                          />
+                        </div>
                       )}
                       {msg.text && (
                         <div className={`rounded-2xl px-4 py-3 ${
@@ -496,8 +507,15 @@ export default function OdysseusAI({
               {/* Input Area */}
               <div className="p-6 pt-4 border-t border-neutral-200/50 dark:border-neutral-700/50 bg-gradient-to-t from-white/60 to-transparent dark:from-neutral-900/60">
                 {mode === 'image' && uploadedImage && (
-                  <div className="mb-3 relative inline-block">
-                    <img src={uploadedImage} alt="" className="w-24 h-20 object-cover rounded-xl" />
+                  <div className="mb-3 relative h-20 w-24 overflow-hidden rounded-xl">
+                    <Image
+                      src={uploadedImage}
+                      alt=""
+                      fill
+                      unoptimized
+                      sizes="96px"
+                      className="object-cover"
+                    />
                     <button
                       onClick={() => setUploadedImage(null)}
                       className="absolute -top-2 -right-2 p-1 bg-red-500 rounded-full text-white"

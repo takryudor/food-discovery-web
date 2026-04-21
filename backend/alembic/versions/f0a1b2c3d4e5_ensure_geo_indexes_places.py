@@ -33,4 +33,3 @@ def upgrade() -> None:
 def downgrade() -> None:
 	# Keep downgrade minimal (indexes can remain).
 	pass
-

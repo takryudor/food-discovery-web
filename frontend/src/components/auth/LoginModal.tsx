@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from './AuthContext';
-import { useLanguage } from './LanguageContext';
+import { useLanguage } from '@/components/providers/LanguageContext';
 
 interface LoginModalProps {
   isOpen: boolean;

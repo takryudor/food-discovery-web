@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, type MutableRefObject } from "react";
+import Image from "next/image";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { Icon, LatLngTuple } from "leaflet";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin,
-  Utensils,
   Loader2,
   AlertCircle,
   Star,
@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { UserLocation, GeoJSONFeature, RestaurantDetail } from "@/lib/types";
-import { getRestaurantDetail } from "@/lib/api";
-import { useLanguage } from "./LanguageContext";
+import { getRestaurantDetail } from "@/lib/api/restaurant";
+import { useLanguage } from "@/components/providers/LanguageContext";
 
 // Fix Leaflet icon issue in Next.js
 import L from "leaflet";
@@ -175,7 +175,6 @@ export default function MapComponent({
             feature.geometry.coordinates[1], // latitude
             feature.geometry.coordinates[0], // longitude
           ];
-          const isSelected = selectedMarkerId === feature.properties.id;
 
           return (
             <Marker
@@ -294,13 +293,15 @@ function RestaurantDetailPanel({
         <div className="flex-1 overflow-y-auto">
           {/* Image Header with Gradient Overlay */}
           <div className="relative h-56 md:h-64">
-            <img
+            <Image
               src={
                 restaurant.cover_image ||
                 "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800"
               }
               alt={restaurant.name}
-              className="w-full h-full object-cover"
+              fill
+              sizes="(max-width: 768px) 100vw, 512px"
+              className="object-cover"
             />
             {/* Gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />

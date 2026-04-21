@@ -63,4 +63,3 @@ def downgrade() -> None:
 	op.execute(sa.text("DROP TRIGGER IF EXISTS trg_places_search_tsv ON places"))
 	op.execute(sa.text("DROP FUNCTION IF EXISTS places_search_tsv_trigger()"))
 	op.execute(sa.text("ALTER TABLE places DROP COLUMN IF EXISTS search_tsv"))
-

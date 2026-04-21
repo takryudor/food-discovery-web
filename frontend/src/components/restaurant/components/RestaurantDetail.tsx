@@ -1,8 +1,9 @@
 import { motion } from 'motion/react';
 import { X, Star, MapPin, Phone, Clock } from 'lucide-react';
 import { useState } from 'react';
-import { useLanguage } from './LanguageContext';
-import CompletionDialog from './CompletionDialog';
+import Image from 'next/image';
+import { useLanguage } from '@/components/providers/LanguageContext';
+import CompletionDialog from '@/components/feedback/CompletionDialog';
 
 interface Restaurant {
   id: number;
@@ -57,10 +58,12 @@ export default function RestaurantDetail({ restaurant, onClose, onConfirm }: Res
         <div className="bg-white dark:bg-neutral-900 rounded-[32px] shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
           {/* Header image */}
           <div className="relative h-80 overflow-hidden">
-            <img
+            <Image
               src={restaurant.image}
               alt={restaurant.name}
-              className="w-full h-full object-cover"
+              fill
+              sizes="(max-width: 768px) 100vw, 768px"
+              className="object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 

@@ -25,26 +25,27 @@ import {
   Minus,
 } from "lucide-react";
 import L from "leaflet";
-import { useLanguage } from "./LanguageContext";
+import { useLanguage } from "@/components/providers/LanguageContext";
 import { useUserLocation } from "@/hooks/useUserLocation";
-import SettingsDropdown from "./SettingsDropdown";
-import OdysseusAI from "./OdysseusAI";
-import type { SuggestedRestaurant } from "./OdysseusAI";
+import SettingsDropdown from "@/components/common/SettingsDropdown";
+import OdysseusAI from "@/components/restaurant/components/OdysseusAI";
+import type { SuggestedRestaurant } from "@/components/restaurant/components/OdysseusAI";
+import { getFiltersOptions } from "@/lib/api/filters";
+import { getMapMarkers } from "@/lib/api/geo";
 import {
-  getFiltersOptions,
-  searchRestaurants,
-  getMapMarkers,
-  searchRestaurantsFulltext,
-  setUseMockData as setApiMockData,
   getUseMockData,
-} from "@/lib/api";
+  setUseMockData as setApiMockData,
+} from "@/lib/api/client";
+import { searchRestaurants, searchRestaurantsFulltext } from "@/lib/api/search";
 import {
   Tag,
-  SearchResult,
   GeoJSONFeature,
   RestaurantSuggestion,
   type UserLocation,
 } from "@/lib/types";
+import { useFilterStore } from "@/store/filterStore";
+import { useMapStore } from "@/store/mapStore";
+import { useSearchStore } from "@/store/searchStore";
 
 // Lazy load MapComponent to avoid SSR issues with Leaflet
 const MapComponent = lazy(() => import("./MapComponent"));
@@ -101,10 +102,31 @@ export default function MapView({
   const [purposesList, setPurposesList] = useState<Tag[]>([]);
   const [amenitiesList, setAmenitiesList] = useState<Tag[]>([]);
   const [budgetRangesList, setBudgetRangesList] = useState<Tag[]>([]);
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [mapMarkers, setMapMarkers] = useState<GeoJSONFeature[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const {
+    selectedConcepts,
+    selectedPurposes,
+    selectedAmenities,
+    selectedBudgetRanges,
+    radius,
+    numberOfPlaces,
+    setRadius,
+    setNumberOfPlaces,
+    toggleConcept,
+    togglePurpose,
+    toggleAmenity,
+    toggleBudgetRange,
+  } = useFilterStore();
+  const { searchResults, setSearchResults, clearSearchResults } = useSearchStore();
+  const {
+    mapMarkers,
+    selectedMarkerId,
+    setMapMarkers,
+    setSelectedMarkerId,
+    clearMapState,
+  } = useMapStore();
   const [odysseusMarkers, setOdysseusMarkers] = useState<GeoJSONFeature[]>([]);
-  const [selectedMarkerId, setSelectedMarkerId] = useState<number | null>(null);
 
   const markersForMap = useMemo(
     () => [...mapMarkers, ...odysseusMarkers],
@@ -134,17 +156,6 @@ export default function MapView({
     [],
   );
 
-  // Filter states
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedConcepts, setSelectedConcepts] = useState<number[]>([]);
-  const [selectedPurposes, setSelectedPurposes] = useState<number[]>([]);
-  const [selectedAmenities, setSelectedAmenities] = useState<number[]>([]);
-  const [selectedBudgetRanges, setSelectedBudgetRanges] = useState<number[]>(
-    [],
-  );
-  const [radius, setRadius] = useState(5);
-  const [numberOfPlaces, setNumberOfPlaces] = useState(10);
-
   // UI states
   const [showFilters, setShowFilters] = useState(true);
   const [showAiRecommendations, setShowAiRecommendations] = useState(
@@ -170,10 +181,8 @@ export default function MapView({
     setUseMockData(newValue);
     setApiMockData(newValue);
 
-    // Clear search results and markers
-    setSearchResults([]);
-    setMapMarkers([]);
-    setSelectedMarkerId(null);
+    clearSearchResults();
+    clearMapState();
 
     // Show message to user
     setMockSwitchMessage(t("switchMockPrompt"));
@@ -191,10 +200,8 @@ export default function MapView({
     setError(null);
 
     try {
-      // Clear current data
-      setSearchResults([]);
-      setMapMarkers([]);
-      setSelectedMarkerId(null);
+      clearSearchResults();
+      clearMapState();
 
       // Reload filters
       await loadFilters();
@@ -208,12 +215,7 @@ export default function MapView({
     }
   };
 
-  // Load filter options on mount
-  useEffect(() => {
-    loadFilters();
-  }, []);
-
-  const loadFilters = async () => {
+  const loadFilters = useCallback(async () => {
     setIsLoadingFilters(true);
     setError(null);
     console.log("[DEBUG] Loading filters...");
@@ -252,7 +254,12 @@ export default function MapView({
     } finally {
       setIsLoadingFilters(false);
     }
-  };
+  }, [t]);
+
+  // Load filter options on mount.
+  useEffect(() => {
+    void loadFilters();
+  }, [loadFilters]);
 
   // Debounced search for autocomplete
   useEffect(() => {
@@ -345,33 +352,9 @@ export default function MapView({
     }
   };
 
-  const toggleConcept = (id: number) => {
-    setSelectedConcepts((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
-    );
-  };
-
-  const togglePurpose = (id: number) => {
-    setSelectedPurposes((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
-    );
-  };
-
-  const toggleAmenity = (id: number) => {
-    setSelectedAmenities((prev) =>
-      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id],
-    );
-  };
-
-  const toggleBudgetRange = (id: number) => {
-    setSelectedBudgetRanges((prev) =>
-      prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id],
-    );
-  };
-
   const handleMarkerClick = useCallback((feature: GeoJSONFeature) => {
     setSelectedMarkerId(feature.properties?.id || null);
-  }, []);
+  }, [setSelectedMarkerId]);
 
   const handleSuggestionClick = (suggestion: RestaurantSuggestion) => {
     setSearchQuery(suggestion.name);

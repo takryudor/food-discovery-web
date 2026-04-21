@@ -21,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   const login = (email: string, password: string) => {
+    void password;
     // Mock login - in real app, this would call an API
     setUser({
       name: email.split('@')[0],

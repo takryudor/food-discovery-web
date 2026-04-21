@@ -1,7 +1,7 @@
 import { Settings, Sun, Moon, Globe } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useLanguage } from './LanguageContext';
+import { useLanguage } from '@/components/providers/LanguageContext';
 
 interface SettingsDropdownProps {
   theme: 'light' | 'dark';

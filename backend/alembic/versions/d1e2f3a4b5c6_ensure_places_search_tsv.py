@@ -67,4 +67,3 @@ FOR EACH ROW EXECUTE FUNCTION places_search_tsv_trigger();
 def downgrade() -> None:
 	# Keep downgrade minimal: do not drop the column automatically to avoid data loss.
 	pass
-

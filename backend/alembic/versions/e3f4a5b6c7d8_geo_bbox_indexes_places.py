@@ -39,4 +39,3 @@ def downgrade() -> None:
 	op.drop_index("ix_places_lat_lng", table_name="places")
 	op.drop_index("ix_places_longitude", table_name="places")
 	op.drop_index("ix_places_latitude", table_name="places")
-
