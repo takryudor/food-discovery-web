@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import Image from "next/image";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { Icon, LatLngTuple } from "leaflet";
@@ -101,8 +101,12 @@ export default function MapComponent({
     useState<RestaurantDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const markerRefs = useRef<Record<number, L.Marker | null>>({});
 
-  const center: LatLngTuple = [userLocation.lat, userLocation.lng];
+  const center: LatLngTuple = useMemo(
+    () => [userLocation.lat, userLocation.lng],
+    [userLocation.lat, userLocation.lng],
+  );
 
   const handleMarkerClick = async (feature: GeoJSONFeature) => {
     onMarkerClick(feature);
@@ -147,6 +151,13 @@ export default function MapComponent({
     }
   };
 
+  useEffect(() => {
+    if (selectedMarkerId == null) return;
+    const marker = markerRefs.current[selectedMarkerId];
+    marker?.openPopup();
+    marker?.fire("click");
+  }, [selectedMarkerId, markers]);
+
   return (
     <div className="relative w-full h-full">
       <MapContainer
@@ -185,6 +196,9 @@ export default function MapComponent({
               key={feature.properties.id}
               position={coords}
               icon={restaurantIcon}
+              ref={(marker) => {
+                markerRefs.current[feature.properties.id] = marker;
+              }}
               eventHandlers={{
                 click: () => handleMarkerClick(feature),
               }}

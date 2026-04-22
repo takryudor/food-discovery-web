@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import unicodedata
+
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -29,6 +31,13 @@ def get_restaurant_by_id(db: Session, restaurant_id: int) -> Place | None:
     return db.scalar(stmt)
 
 
+def _normalize_search_text(text: str) -> str:
+    """Normalize autocomplete text for accent-insensitive matching."""
+    stripped = text.strip().lower()
+    normalized = unicodedata.normalize("NFKD", stripped)
+    return "".join(char for char in normalized if not unicodedata.combining(char))
+
+
 def search_restaurant_suggestions(
     db: Session, query: str, limit: int = 8
 ) -> list[dict]:
@@ -48,6 +57,8 @@ def search_restaurant_suggestions(
     - Sau đó đến tên chứa query
     - Cuối cùng sort theo độ dài tên tăng dần để gợi ý gọn
     """
+    query = _normalize_search_text(query)
+
     if not query:
         return []
 

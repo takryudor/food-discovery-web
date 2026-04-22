@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  type FocusEvent,
+} from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -84,6 +91,7 @@ export default function MapView({
   const [restorableMapMarkers, setRestorableMapMarkers] =
     useState<GeoJSONFeature[] | null>(null);
   const mapLeafletRef = useRef<LeafletMap | null>(null);
+  const searchPanelRef = useRef<HTMLDivElement | null>(null);
 
   const userLocation = manualLocation ?? gpsLocation;
 
@@ -179,11 +187,13 @@ export default function MapView({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchSuggestions, setSearchSuggestions] = useState<
     RestaurantSuggestion[]
   >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   // Keep SSR and first client render consistent, then sync from localStorage on mount.
   const [useMockData, setUseMockData] = useState(true);
   const [mockSwitchMessage, setMockSwitchMessage] = useState<string | null>(
@@ -191,6 +201,7 @@ export default function MapView({
   );
 
   const radiusOptions = [3, 5, 8, 10];
+  const isSearchActive = isSearchFocused || showSuggestions;
 
   useEffect(() => {
     setUseMockData(getUseMockData());
@@ -289,109 +300,186 @@ export default function MapView({
   // Debounced search for autocomplete
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (searchQuery.trim().length >= 1) {
+      const normalizedQuery = searchQuery.trim();
+
+      if (normalizedQuery.length >= 1) {
+        setIsLoadingSuggestions(true);
         try {
-          const suggestions = await searchRestaurantsFulltext(
-            searchQuery.trim(),
-            8,
-          );
+          const suggestions = await searchRestaurantsFulltext(normalizedQuery, 8);
           setSearchSuggestions(suggestions);
           setShowSuggestions(true);
         } catch (err) {
-          // Silent fail for autocomplete
           console.error("Autocomplete error:", err);
+          setSearchSuggestions([]);
+          setShowSuggestions(true);
+        } finally {
+          setIsLoadingSuggestions(false);
         }
       } else {
+        setIsLoadingSuggestions(false);
         setShowSuggestions(false);
+        setSearchSuggestions([]);
       }
     }, 300);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleSearch = async () => {
-    setIsLoading(true);
-    setError(null);
-    setShowFilters(false);
-    setShowSuggestions(false);
-    setShowEmptyMessage(true);
-    setIsMapLocked(false);
-    setRestorableMapMarkers(null);
+  const handleSearch = useCallback(
+    async (queryOverride?: string, focusSuggestion?: RestaurantSuggestion) => {
+      const queryText = (queryOverride ?? searchQuery).trim();
+      const isSuggestionFlow = focusSuggestion != null;
 
-    try {
-      console.log("[DEBUG] Starting search with params:", {
-        query: searchQuery.trim() || undefined,
-        location: userLocation,
-        radius_km: radius,
-        concept_ids: selectedConcepts.length > 0 ? selectedConcepts : undefined,
-        purpose_ids: selectedPurposes.length > 0 ? selectedPurposes : undefined,
-        amenity_ids:
-          selectedAmenities.length > 0 ? selectedAmenities : undefined,
-        budget_range_ids:
-          selectedBudgetRanges.length > 0 ? selectedBudgetRanges : undefined,
-        limit: numberOfPlaces,
-      });
-
-      // Search restaurants
-      const response = await searchRestaurants({
-        query: searchQuery.trim() || undefined,
-        location: {
-          lat: userLocation.lat,
-          lng: userLocation.lng,
-        },
-        radius_km: radius,
-        concept_ids: selectedConcepts.length > 0 ? selectedConcepts : undefined,
-        purpose_ids: selectedPurposes.length > 0 ? selectedPurposes : undefined,
-        amenity_ids:
-          selectedAmenities.length > 0 ? selectedAmenities : undefined,
-        budget_range_ids:
-          selectedBudgetRanges.length > 0 ? selectedBudgetRanges : undefined,
-        limit: numberOfPlaces,
-        offset: 0,
-      });
-
-      console.log("[DEBUG] Search results:", response);
-      setSearchResults(response.items);
-
-      // Get map markers for found restaurants
-      if (response.items.length > 0) {
-        const restaurantIds = response.items.map((item) => item.id);
-        console.log(
-          "[DEBUG] Fetching markers for restaurant IDs:",
-          restaurantIds,
-        );
-
-        const markers = await getMapMarkers({
-          restaurant_ids: restaurantIds,
-        });
-        console.log("[DEBUG] Map markers received:", markers);
-        setMapMarkers(markers.features);
-      } else {
-        console.log("[DEBUG] No search results, clearing markers");
-        setMapMarkers([]);
+      if (queryOverride !== undefined) {
+        setSearchQuery(queryText);
       }
-    } catch (err) {
-      const debugError =
-        err instanceof Error
-          ? {
-              name: err.name,
-              message: err.message,
-              stack: err.stack,
-            }
-          : err;
 
-      const errorMessage =
-        typeof err === "string"
-          ? err
-          : err && typeof err === "object" && "message" in err
-            ? String((err as { message: unknown }).message)
-            : "Có lỗi xảy ra khi tìm kiếm";
-      console.error("[DEBUG] Search error:", debugError);
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setIsLoading(true);
+      setError(null);
+      setShowFilters(false);
+      setShowSuggestions(false);
+      setShowEmptyMessage(!isSuggestionFlow);
+      setIsMapLocked(false);
+      setRestorableMapMarkers(null);
+
+      try {
+        console.log("[DEBUG] Starting search with params:", {
+          query: queryText || undefined,
+          location: userLocation,
+          radius_km: radius,
+          concept_ids: selectedConcepts.length > 0 ? selectedConcepts : undefined,
+          purpose_ids: selectedPurposes.length > 0 ? selectedPurposes : undefined,
+          amenity_ids:
+            selectedAmenities.length > 0 ? selectedAmenities : undefined,
+          budget_range_ids:
+            selectedBudgetRanges.length > 0 ? selectedBudgetRanges : undefined,
+          limit: numberOfPlaces,
+        });
+
+        // Search restaurants
+        const response = await searchRestaurants({
+          query: queryText || undefined,
+          location: {
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+          },
+          radius_km: radius,
+          concept_ids: selectedConcepts.length > 0 ? selectedConcepts : undefined,
+          purpose_ids: selectedPurposes.length > 0 ? selectedPurposes : undefined,
+          amenity_ids:
+            selectedAmenities.length > 0 ? selectedAmenities : undefined,
+          budget_range_ids:
+            selectedBudgetRanges.length > 0 ? selectedBudgetRanges : undefined,
+          limit: numberOfPlaces,
+          offset: 0,
+        });
+
+        console.log("[DEBUG] Search results:", response);
+        setSearchResults(response.items);
+
+        // Get map markers for found restaurants
+        if (response.items.length > 0) {
+          const restaurantIds = response.items.map((item) => item.id);
+          console.log(
+            "[DEBUG] Fetching markers for restaurant IDs:",
+            restaurantIds,
+          );
+
+          const markers = await getMapMarkers({
+            restaurant_ids: restaurantIds,
+          });
+          console.log("[DEBUG] Map markers received:", markers);
+          const nextMarkers = [...markers.features];
+          if (
+            focusSuggestion?.latitude != null &&
+            focusSuggestion?.longitude != null &&
+            !nextMarkers.some((feature) => feature.properties.id === focusSuggestion.id)
+          ) {
+            nextMarkers.unshift({
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [focusSuggestion.longitude, focusSuggestion.latitude],
+              },
+              properties: {
+                id: focusSuggestion.id,
+                name: focusSuggestion.name,
+                address: focusSuggestion.address,
+              },
+            });
+          }
+          setMapMarkers(nextMarkers);
+        } else {
+          console.log("[DEBUG] No search results, clearing markers");
+          if (
+            focusSuggestion?.latitude != null &&
+            focusSuggestion?.longitude != null
+          ) {
+            setMapMarkers([
+              {
+                type: "Feature",
+                geometry: {
+                  type: "Point",
+                  coordinates: [focusSuggestion.longitude, focusSuggestion.latitude],
+                },
+                properties: {
+                  id: focusSuggestion.id,
+                  name: focusSuggestion.name,
+                  address: focusSuggestion.address,
+                },
+              },
+            ]);
+          } else {
+            setMapMarkers([]);
+          }
+        }
+
+        if (
+          focusSuggestion?.latitude != null &&
+          focusSuggestion?.longitude != null
+        ) {
+          mapLeafletRef.current?.setView(
+            [focusSuggestion.latitude, focusSuggestion.longitude],
+            17,
+          );
+          setSelectedMarkerId(focusSuggestion.id);
+        }
+      } catch (err) {
+        const debugError =
+          err instanceof Error
+            ? {
+                name: err.name,
+                message: err.message,
+                stack: err.stack,
+              }
+            : err;
+
+        const errorMessage=
+          typeof err === "string"
+            ? err
+            : err && typeof err === "object" && "message" in err
+              ? String((err as { message: unknown }).message)
+              : "Có lỗi xảy ra khi tìm kiếm";
+        console.error("[DEBUG] Search error:", debugError);
+        setError(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [
+      numberOfPlaces,
+      radius,
+      searchQuery,
+      selectedAmenities,
+      selectedBudgetRanges,
+      selectedConcepts,
+      selectedPurposes,
+      setMapMarkers,
+      setSearchResults,
+      setSelectedMarkerId,
+      userLocation,
+    ],
+  );
 
   const handleMarkerClick = useCallback(
     (feature: GeoJSONFeature) => {
@@ -433,7 +521,28 @@ export default function MapView({
   const handleSuggestionClick = (suggestion: RestaurantSuggestion) => {
     setSearchQuery(suggestion.name);
     setShowSuggestions(false);
+    setIsSearchFocused(false);
+    if (suggestion.latitude != null && suggestion.longitude != null) {
+      mapLeafletRef.current?.setView(
+        [suggestion.latitude, suggestion.longitude],
+        17,
+      );
+    }
+    setSelectedMarkerId(suggestion.id);
+    void handleSearch(suggestion.name, suggestion);
   };
+
+  const handleSearchInputBlur = useCallback(
+    (event: FocusEvent<HTMLInputElement>) => {
+      const nextTarget = event.relatedTarget as Node | null;
+      if (nextTarget && searchPanelRef.current?.contains(nextTarget)) {
+        return;
+      }
+      setIsSearchFocused(false);
+      setShowSuggestions(false);
+    },
+    [],
+  );
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-950">
@@ -570,15 +679,22 @@ export default function MapView({
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* Search input with autocomplete */}
-                <div className="relative">
+                <div className="relative" ref={searchPanelRef}>
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() =>
-                      searchSuggestions.length > 0 && setShowSuggestions(true)
-                    }
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setIsSearchFocused(true);
+                    }}
+                    onFocus={() => {
+                      setIsSearchFocused(true);
+                      if (searchQuery.trim().length > 0) {
+                        setShowSuggestions(true);
+                      }
+                    }}
+                    onBlur={handleSearchInputBlur}
                     placeholder={t("searchPlaceholder")}
                     className="w-full pl-12 pr-4 py-4 rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white/50 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
                     style={{ fontFamily: "Inter, sans-serif" }}
@@ -586,139 +702,154 @@ export default function MapView({
 
                   {/* Autocomplete suggestions */}
                   <AnimatePresence>
-                    {showSuggestions && searchSuggestions.length > 0 && (
+                    {showSuggestions && (
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden z-50"
                       >
-                        {searchSuggestions.map((suggestion) => (
-                          <button
-                            key={suggestion.id}
-                            onClick={() => handleSuggestionClick(suggestion)}
-                            className="w-full px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors flex items-center gap-3"
-                          >
-                            <MapPin className="w-4 h-4 text-neutral-400" />
-                            <div>
-                              <p className="font-medium text-neutral-800 dark:text-neutral-200">
-                                {suggestion.name}
-                              </p>
-                              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                                {suggestion.address}
-                              </p>
-                            </div>
-                          </button>
-                        ))}
+                        {isLoadingSuggestions ? (
+                          <div className="px-4 py-3 text-sm text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Đang tìm gợi ý...
+                          </div>
+                        ) : searchSuggestions.length > 0 ? (
+                          searchSuggestions.map((suggestion) => (
+                            <button
+                              key={suggestion.id}
+                              onClick={() => handleSuggestionClick(suggestion)}
+                              className="w-full px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors flex items-center gap-3"
+                            >
+                              <MapPin className="w-4 h-4 text-neutral-400" />
+                              <div>
+                                <p className="font-medium text-neutral-800 dark:text-neutral-200">
+                                  {suggestion.name}
+                                </p>
+                                <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                                  {suggestion.address}
+                                </p>
+                              </div>
+                            </button>
+                          ))
+                        ) : searchQuery.trim().length > 0 ? (
+                          <div className="px-4 py-4 text-sm text-neutral-500 dark:text-neutral-400">
+                            {t("noResultsDesc")}
+                          </div>
+                        ) : null}
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
 
-                {/* Error message */}
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl text-red-600 dark:text-red-400"
-                  >
-                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                    <p className="text-sm">{error}</p>
-                  </motion.div>
-                )}
+                <div
+                  className={`space-y-6 transition-all duration-200 ${isSearchActive ? "pointer-events-none select-none opacity-25 blur-[1.5px]" : ""}`}
+                  aria-hidden={isSearchActive}
+                >
+                  {/* Error message */}
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl text-red-600 dark:text-red-400"
+                    >
+                      <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                      <p className="text-sm">{error}</p>
+                    </motion.div>
+                  )}
 
-                {/* Mock switch notification */}
-                {mockSwitchMessage && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl text-blue-600 dark:text-blue-400 text-sm"
-                  >
-                    {mockSwitchMessage}
-                  </motion.div>
-                )}
+                  {/* Mock switch notification */}
+                  {mockSwitchMessage && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl text-blue-600 dark:text-blue-400 text-sm"
+                    >
+                      {mockSwitchMessage}
+                    </motion.div>
+                  )}
 
-                {/* Loading state */}
-                {isLoadingFilters ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-                    <span className="ml-3 text-neutral-600">
-                      {t("loadingFilters")}
-                    </span>
-                  </div>
-                ) : (
-                  <>
-                    {/* Concept filters - luôn hiển thị section dù rỗng */}
-                    <FilterSection
-                      title={t("concept")}
-                      tags={conceptsList}
-                      selected={selectedConcepts}
-                      onToggle={toggleConcept}
-                      color="blue"
-                      isEmpty={conceptsList.length === 0}
-                    />
+                  {/* Loading state */}
+                  {isLoadingFilters ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                      <span className="ml-3 text-neutral-600">
+                        {t("loadingFilters")}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Concept filters - luôn hiển thị section dù rỗng */}
+                      <FilterSection
+                        title={t("concept")}
+                        tags={conceptsList}
+                        selected={selectedConcepts}
+                        onToggle={toggleConcept}
+                        color="blue"
+                        isEmpty={conceptsList.length === 0}
+                      />
 
-                    {/* Purpose filters */}
-                    <FilterSection
-                      title={t("purpose")}
-                      tags={purposesList}
-                      selected={selectedPurposes}
-                      onToggle={togglePurpose}
-                      color="green"
-                      isEmpty={purposesList.length === 0}
-                    />
+                      {/* Purpose filters */}
+                      <FilterSection
+                        title={t("purpose")}
+                        tags={purposesList}
+                        selected={selectedPurposes}
+                        onToggle={togglePurpose}
+                        color="green"
+                        isEmpty={purposesList.length === 0}
+                      />
 
-                    {/* Amenities filters */}
-                    <FilterSection
-                      title={t("amenities")}
-                      tags={amenitiesList}
-                      selected={selectedAmenities}
-                      onToggle={toggleAmenity}
-                      color="purple"
-                      isEmpty={amenitiesList.length === 0}
-                    />
+                      {/* Amenities filters */}
+                      <FilterSection
+                        title={t("amenities")}
+                        tags={amenitiesList}
+                        selected={selectedAmenities}
+                        onToggle={toggleAmenity}
+                        color="purple"
+                        isEmpty={amenitiesList.length === 0}
+                      />
 
-                    {/* Budget Range filters */}
-                    <FilterSection
-                      title={t("budgetRange")}
-                      tags={budgetRangesList}
-                      selected={selectedBudgetRanges}
-                      onToggle={toggleBudgetRange}
-                      color="orange"
-                      isEmpty={budgetRangesList.length === 0}
-                    />
+                      {/* Budget Range filters */}
+                      <FilterSection
+                        title={t("budgetRange")}
+                        tags={budgetRangesList}
+                        selected={selectedBudgetRanges}
+                        onToggle={toggleBudgetRange}
+                        color="orange"
+                        isEmpty={budgetRangesList.length === 0}
+                      />
 
-                    {/* Thông báo khi tất cả filters đều rỗng */}
-                    {conceptsList.length === 0 &&
-                      purposesList.length === 0 &&
-                      amenitiesList.length === 0 &&
-                      budgetRangesList.length === 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl"
-                        >
-                          <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-2">
-                            ⚠️ {t("filterError")}
-                          </p>
-                          <button
-                            onClick={() => {
-                              setUseMockData(true);
-                              setApiMockData(true);
-                              loadFilters();
-                            }}
-                            className="text-sm px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
+                      {/* Thông báo khi tất cả filters đều rỗng */}
+                      {conceptsList.length === 0 &&
+                        purposesList.length === 0 &&
+                        amenitiesList.length === 0 &&
+                        budgetRangesList.length === 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl"
                           >
-                            {t("useMockData")}
-                          </button>
-                        </motion.div>
-                      )}
-                  </>
-                )}
+                            <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-2">
+                              ⚠️ {t("filterError")}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setUseMockData(true);
+                                setApiMockData(true);
+                                loadFilters();
+                              }}
+                              className="text-sm px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
+                            >
+                              {t("useMockData")}
+                            </button>
+                          </motion.div>
+                        )}
+                    </>
+                  )}
 
-                {/* Radius slider */}
-                <div className="space-y-4">
+                  {/* Radius slider */}
+                  <div className="space-y-4">
                   <h3
                     className="font-semibold text-neutral-700 dark:text-neutral-300"
                     style={{ fontFamily: "Inter, sans-serif" }}
@@ -751,10 +882,10 @@ export default function MapView({
                       ))}
                     </div>
                   </div>
-                </div>
+                  </div>
 
-                {/* Number of places */}
-                <div className="space-y-4">
+                  {/* Number of places */}
+                  <div className="space-y-4">
                   <h3
                     className="font-semibold text-neutral-700 dark:text-neutral-300"
                     style={{ fontFamily: "Inter, sans-serif" }}
@@ -778,6 +909,7 @@ export default function MapView({
                       </option>
                     ))}
                   </select>
+                  </div>
                 </div>
               </div>
 
@@ -786,7 +918,7 @@ export default function MapView({
                 <motion.button
                   whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={handleSearch}
+                  onClick={() => void handleSearch()}
                   disabled={isLoading}
                   className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{ fontFamily: "Inter, sans-serif" }}
@@ -853,7 +985,7 @@ export default function MapView({
       )}
 
       {/* Empty results message */}
-      {!isLoading && searchResults.length === 0 && !showFilters && !error && showEmptyMessage && (
+      {!isLoading && searchResults.length === 0 && mapMarkers.length === 0 && !showFilters && !error && showEmptyMessage && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}

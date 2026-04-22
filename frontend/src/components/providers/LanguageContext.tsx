@@ -67,8 +67,7 @@ const translations = {
     useMockData: "Dùng dữ liệu mẫu",
     searching: "Đang tìm...",
     noResults: "Chưa có kết quả",
-    noResultsDesc:
-      "Hãy điều chỉnh bộ lọc và tìm kiếm để xem nhà hàng trên bản đồ",
+    noResultsDesc: "Không có quán ăn nào khớp với tìm kiếm của bạn.",
     openFilters: "Mở bộ lọc",
     locationDenied: "Đang sử dụng vị trí mặc định (TP.HCM)",
     mockModeOn: "Đang dùng dữ liệu mẫu",
@@ -248,7 +247,7 @@ const translations = {
     useMockData: "Use sample data",
     searching: "Searching...",
     noResults: "No results yet",
-    noResultsDesc: "Adjust filters and search to see restaurants on the map",
+    noResultsDesc: "No restaurants match your search.",
     openFilters: "Open Filters",
     locationDenied: "Using default location (Ho Chi Minh City)",
     mockModeOn: "Using sample data",
