@@ -120,6 +120,13 @@ export default function MapView({
     map.zoomOut();
   }, []);
 
+  const handleBackToCurrentLocation = useCallback(() => {
+    const targetLocation = gpsLocation ?? userLocation;
+    setManualLocation(null);
+    setIsSettingLocation(false);
+    mapLeafletRef.current?.setView([targetLocation.lat, targetLocation.lng], 14);
+  }, [gpsLocation, userLocation]);
+
   // Data states
   const [conceptsList, setConceptsList] = useState<Tag[]>([]);
   const [purposesList, setPurposesList] = useState<Tag[]>([]);
@@ -182,6 +189,7 @@ export default function MapView({
   // UI states
   const [showFilters, setShowFilters] = useState(true);
   const [showEmptyMessage, setShowEmptyMessage] = useState(true);
+  const [hasSearched, setHasSearched] = useState(false);
   const [showAiRecommendations, setShowAiRecommendations] = useState(
     aiRecommendations.length > 0,
   );
@@ -217,6 +225,7 @@ export default function MapView({
 
     clearSearchResults();
     clearMapState();
+    setHasSearched(false);
 
     // Show message to user
     setMockSwitchMessage(t("switchMockPrompt"));
@@ -238,6 +247,7 @@ export default function MapView({
       setRestorableMapMarkers(null);
       clearSearchResults();
       clearMapState();
+      setHasSearched(false);
 
       // Reload filters
       await loadFilters();
@@ -336,6 +346,7 @@ export default function MapView({
 
       setIsLoading(true);
       setError(null);
+      setHasSearched(true);
       setShowFilters(false);
       setShowSuggestions(false);
       setShowEmptyMessage(!isSuggestionFlow);
@@ -985,7 +996,7 @@ export default function MapView({
       )}
 
       {/* Empty results message */}
-      {!isLoading && searchResults.length === 0 && mapMarkers.length === 0 && !showFilters && !error && showEmptyMessage && (
+      {!isLoading && searchResults.length === 0 && mapMarkers.length === 0 && !showFilters && !error && showEmptyMessage && hasSearched && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1155,6 +1166,15 @@ export default function MapView({
                 {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
               </p>
             </div>
+            <motion.button
+              onClick={handleBackToCurrentLocation}
+              className="ml-1 p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800/90 transition-all"
+              title={t("currentLocation")}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Crosshair className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            </motion.button>
           </div>
         </div>
 

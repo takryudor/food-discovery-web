@@ -200,10 +200,16 @@ export default function MapComponent({
                 markerRefs.current[feature.properties.id] = marker;
               }}
               eventHandlers={{
+                mouseover: (event) => {
+                  event.target.openPopup();
+                },
+                mouseout: (event) => {
+                  event.target.closePopup();
+                },
                 click: () => handleMarkerClick(feature),
               }}
             >
-              <Popup autoPan={false}>
+              <Popup autoPan={false} closeButton={false}>
                 <div className="p-2 min-w-[200px]">
                   <h3 className="font-semibold text-base mb-1">
                     {feature.properties.name}
