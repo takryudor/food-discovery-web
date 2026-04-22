@@ -1,10 +1,22 @@
 "use client";
 
-import { useRef } from "react";
 import Image from "next/image";
-import { motion, useScroll, useTransform } from 'motion/react';
-import { ArrowLeft, Star, Eye, MessageCircle, Clock } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
+import { ArrowLeft, Star, Eye, MessageCircle, Clock, X } from 'lucide-react';
 import { useLanguage } from '@/components/providers/LanguageContext';
+
+interface Article {
+  id: number | string;
+  title: string;
+  description?: string;
+  image: string;
+  category?: string;
+  readTime?: string;
+  views?: number;
+  comments?: number;
+  date?: string;
+}
 
 interface ExplorePageProps {
   onBackHome: () => void;
@@ -15,6 +27,8 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
   const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [visibleArticles, setVisibleArticles] = useState(6);
 
   const { scrollY } = useScroll({ container: containerRef });
   const heroY = useTransform(scrollY, [0, 400], [0, 150]);
@@ -100,7 +114,7 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
       {/* Articles Grid */}
       <section className="max-w-7xl mx-auto px-8 py-20">
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {articles.map((article, index) => (
+          {articles.slice(0, visibleArticles).map((article, index) => (
             <motion.article
               key={article.id}
               initial={{ opacity: 0, y: 20 }}
@@ -108,16 +122,11 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
               whileHover={{ y: -8 }}
+              onClick={() => setSelectedArticle(article)}
               className="bg-white dark:bg-neutral-900 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
             >
               <div className="relative h-56 overflow-hidden">
-                <Image
-                  src={article.image}
-                  alt={article.title}
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 33vw"
-                  className="object-cover"
-                />
+                <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
                 <div className="absolute top-4 left-4">
                   <span className="px-4 py-1.5 bg-orange-500 text-white text-xs rounded-full" style={{ fontFamily: 'Inter, sans-serif' }}>
                     {article.category}
@@ -142,6 +151,19 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
             </motion.article>
           ))}
         </div>
+        {visibleArticles < articles.length && (
+          <div className="flex justify-center mt-12">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setVisibleArticles(articles.length)}
+              className="px-8 py-3 bg-gradient-to-r from-[#FF4B2B] to-[#FF8122] text-white rounded-full shadow-lg hover:shadow-xl transition-all"
+              style={{ fontFamily: 'Inter, sans-serif' }}
+            >
+              {t('seeMore')}
+            </motion.button>
+          </div>
+        )}
       </section>
 
       {/* Latest Food News — Horizontal Scroll */}
@@ -166,16 +188,11 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.08 }}
                 whileHover={{ y: -6, scale: 1.02 }}
+                onClick={() => setSelectedArticle({ ...news, description: t('exploreArticleDesc'), category: t('latestFoodNews'), readTime: '4 min' })}
                 className="w-64 flex-shrink-0 bg-white dark:bg-neutral-900 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
               >
-                <div className="relative h-36 overflow-hidden">
-                  <Image
-                    src={news.image}
-                    alt={news.title}
-                    fill
-                    sizes="256px"
-                    className="object-cover"
-                  />
+                <div className="h-36 overflow-hidden">
+                  <img src={news.image} alt={news.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="p-4">
                   <h4 className="text-sm text-neutral-800 dark:text-neutral-100 mb-2 line-clamp-2" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -213,17 +230,12 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
               viewport={{ once: true }}
               transition={{ delay: index * 0.15 }}
               whileHover={{ y: -4 }}
+              onClick={() => setSelectedArticle(article)}
               className="flex flex-col md:flex-row bg-white dark:bg-neutral-900 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
             >
               {/* Large image */}
               <div className="md:w-2/5 h-64 md:h-auto overflow-hidden relative">
-                <Image
-                  src={article.image}
-                  alt={article.title}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 40vw"
-                  className="object-cover"
-                />
+                <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
                 <div className="absolute top-4 left-4">
                   <span className="px-4 py-1.5 bg-orange-500 text-white text-xs rounded-full" style={{ fontFamily: 'Inter, sans-serif' }}>
                     {article.category}
@@ -264,6 +276,82 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
           ))}
         </div>
       </section>
+
+      {/* Article Detail Modal */}
+      <AnimatePresence>
+        {selectedArticle && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedArticle(null)}
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ type: 'spring', damping: 22 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto bg-white dark:bg-neutral-900 rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800"
+            >
+              <button
+                onClick={() => setSelectedArticle(null)}
+                className="absolute top-5 right-5 z-10 p-2.5 rounded-full bg-white/90 dark:bg-neutral-800/90 backdrop-blur shadow-lg hover:scale-110 transition-transform"
+                aria-label={t('close')}
+              >
+                <X className="w-5 h-5 text-neutral-800 dark:text-neutral-100" />
+              </button>
+              <div className="relative h-72 overflow-hidden">
+                <img src={selectedArticle.image} alt={selectedArticle.title} className="w-full h-full object-cover" />
+                {selectedArticle.category && (
+                  <div className="absolute top-5 left-5">
+                    <span className="px-4 py-1.5 bg-orange-500 text-white text-xs rounded-full" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      {selectedArticle.category}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="p-8">
+                <h2 className="text-3xl md:text-4xl text-neutral-800 dark:text-neutral-100 mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
+                  {selectedArticle.title}
+                </h2>
+                <div className="flex flex-wrap items-center gap-5 text-sm text-neutral-500 dark:text-neutral-400 mb-6" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {selectedArticle.readTime && (
+                    <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" />{selectedArticle.readTime}</span>
+                  )}
+                  {selectedArticle.views !== undefined && (
+                    <span className="flex items-center gap-1.5"><Eye className="w-4 h-4" />{formatNumber(selectedArticle.views)} {t('views')}</span>
+                  )}
+                  {selectedArticle.comments !== undefined && (
+                    <span className="flex items-center gap-1.5"><MessageCircle className="w-4 h-4" />{selectedArticle.comments} {t('comments')}</span>
+                  )}
+                  {selectedArticle.date && (
+                    <span>{selectedArticle.date}</span>
+                  )}
+                </div>
+                <p className="text-neutral-700 dark:text-neutral-300 mb-4 text-lg" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {selectedArticle.description}
+                </p>
+                <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  Sài Gòn từ lâu đã là điểm đến ẩm thực hàng đầu Đông Nam Á với sự giao thoa giữa truyền thống và hiện đại. Từ những gánh hàng rong ven đường đến nhà hàng fine-dining đạt sao Michelin, thành phố này mang đến vô vàn trải nghiệm vị giác độc đáo cho bất kỳ ai đặt chân đến.
+                </p>
+                <div className="mt-8 flex justify-end">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSelectedArticle(null)}
+                    className="px-6 py-2.5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-full"
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
+                    {t('close')}
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

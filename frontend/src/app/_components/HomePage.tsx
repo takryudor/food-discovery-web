@@ -1,17 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import {
-  Utensils,
-  ChevronRight,
-  Star,
-  MapPin,
-  Phone,
-  Mail,
-  Share2,
-  Camera,
-  MessageCircle,
-} from "lucide-react";
+import { Utensils, ChevronRight, Star, MapPin, Phone, Mail} from 'lucide-react';
 import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "@/components/providers/LanguageContext";
 import { useAuth } from "@/components/auth/AuthContext";
@@ -23,16 +13,11 @@ import UserMenu from "@/components/auth/UserMenu";
 interface HomePageProps {
   onStartJourney: () => void;
   onGoToExplore: () => void;
-  theme: "light" | "dark";
-  onThemeChange: (theme: "light" | "dark") => void;
+  theme: 'light' | 'dark';
+  onThemeChange: (theme: 'light' | 'dark') => void;
 }
 
-export default function HomePage({
-  onStartJourney,
-  onGoToExplore,
-  theme,
-  onThemeChange,
-}: HomePageProps) {
+export default function HomePage({ onStartJourney, onGoToExplore, theme, onThemeChange }: HomePageProps) {
   const { t } = useLanguage();
   const { isAuthenticated } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -241,29 +226,57 @@ export default function HomePage({
           </motion.h2>
 
           <div className="grid md:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((item) => (
+            {[
+              {
+                name: "Pizza 4P's Lê Thánh Tôn",
+                address: '8/15 Lê Thánh Tôn, Q.1, TP.HCM',
+                image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80',
+                rating: 5,
+              },
+              {
+                name: 'Cục Gạch Quán',
+                address: '10 Đặng Tất, Q.1, TP.HCM',
+                image: 'https://images.unsplash.com/photo-1555126634-323283e090fa?w=600&q=80',
+                rating: 5,
+              },
+              {
+                name: 'Propaganda Saigon',
+                address: '21 Hàn Thuyên, Q.1, TP.HCM',
+                image: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=600&q=80',
+                rating: 4,
+              },
+              {
+                name: 'Nhà hàng Ngon 160',
+                address: '160 Pasteur, Q.1, TP.HCM',
+                image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80',
+                rating: 5,
+              },
+            ].map((r, idx) => (
               <motion.div
-                key={item}
+                key={r.name}
                 initial={{ opacity: 0, scale: 0.9 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ delay: item * 0.05 }}
+                transition={{ delay: idx * 0.05 }}
                 whileHover={{ y: -8 }}
+                onClick={onStartJourney}
                 className="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer border border-orange-200/50 dark:border-orange-800/30"
               >
-                <div className="h-40 bg-gradient-to-br from-orange-400 to-red-500" />
+                <div className="h-40 overflow-hidden">
+                  <img src={r.image} alt={r.name} className="w-full h-full object-cover" />
+                </div>
                 <div className="p-4">
                   <h3 className="font-bold text-neutral-800 dark:text-neutral-100 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    {t('restaurant')} {item}
+                    {r.name}
                   </h3>
                   <div className="flex items-center gap-1 text-amber-500 mb-2">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <Star key={star} className="w-4 h-4 fill-current" />
+                      <Star key={star} className={`w-4 h-4 ${star <= r.rating ? 'fill-current' : 'opacity-30'}`} />
                     ))}
                   </div>
-                  <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-400 text-sm">
-                    <MapPin className="w-4 h-4" />
-                    <span style={{ fontFamily: 'Inter, sans-serif' }}>Quận {item}, TP.HCM</span>
+                  <div className="flex items-start gap-2 text-neutral-600 dark:text-neutral-400 text-sm">
+                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span style={{ fontFamily: 'Inter, sans-serif' }}>{r.address}</span>
                   </div>
                 </div>
               </motion.div>
@@ -291,10 +304,52 @@ export default function HomePage({
           className="flex gap-6 overflow-x-hidden px-8"
           style={{ scrollBehavior: 'auto' }}
         >
-          {/* Duplicate reviews for infinite scroll effect */}
           {[...Array(2)].map((_, setIndex) => (
             <div key={setIndex} className="flex gap-6 flex-shrink-0">
-              {[1, 2, 3, 4, 5, 6].map((item) => (
+              {[
+                {
+                  name: 'Nguyễn Minh Anh',
+                  role: 'Food Blogger · Q.1',
+                  avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&q=80',
+                  rating: 5,
+                  text: 'Phở Lệ trên Nguyễn Trãi thực sự là tô phở ngon nhất mà mình từng ăn ở Sài Gòn. Nước dùng đậm đà, bánh phở mềm dai vừa đúng!',
+                },
+                {
+                  name: 'Trần Hoàng Nam',
+                  role: 'Kiến trúc sư · Q.3',
+                  avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80',
+                  rating: 5,
+                  text: 'Pizza 4P\'s Lê Thánh Tôn có burrata tươi làm tại chỗ - vị béo ngậy kết hợp với đế pizza giòn. Không gian sang trọng, phục vụ chu đáo.',
+                },
+                {
+                  name: 'Lê Thu Hà',
+                  role: 'Travel Writer · Q.2',
+                  avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&q=80',
+                  rating: 4,
+                  text: 'Chill Skybar trên tầng 26 có view hoàng hôn tuyệt đẹp. Cocktail sáng tạo, giá hơi cao nhưng xứng đáng cho dịp đặc biệt.',
+                },
+                {
+                  name: 'Phạm Quốc Việt',
+                  role: 'Kỹ sư phần mềm · Bình Thạnh',
+                  avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=200&q=80',
+                  rating: 5,
+                  text: 'Bánh mì Huỳnh Hoa trên Lê Thị Riêng - ổ bánh đầy đặn, pate thơm, chả lụa giòn. Luôn đông khách nhưng đáng để chờ!',
+                },
+                {
+                  name: 'Đặng Mai Linh',
+                  role: 'Chef & Foodie · Q.7',
+                  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80',
+                  rating: 5,
+                  text: 'Cục Gạch Quán mang cảm giác nhà quê giữa lòng Sài Gòn. Cá kho tộ, canh chua cá lóc đậm đà, không khí gia đình ấm cúng.',
+                },
+                {
+                  name: 'Hoàng Thanh Tùng',
+                  role: 'Yoga Instructor · Q.2',
+                  avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80',
+                  rating: 4,
+                  text: 'Propaganda Saigon là điểm hẹn healthy lý tưởng. Bowl rau củ tươi ngon, nước ép detox ngon miệng, trang trí đẹp để sống ảo.',
+                },
+              ].map((review, item) => (
                 <motion.div
                   key={`${setIndex}-${item}`}
                   initial={{ opacity: 0, y: 20 }}
@@ -305,20 +360,20 @@ export default function HomePage({
                 >
                   <div className="flex items-center gap-1 text-amber-500 mb-4">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <Star key={star} className="w-5 h-5 fill-current" />
+                      <Star key={star} className={`w-5 h-5 ${star <= review.rating ? 'fill-current' : 'opacity-30'}`} />
                     ))}
                   </div>
                   <p className="text-neutral-700 dark:text-neutral-300 mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    &quot;{t('reviewText')}&quot;
+                    "{review.text}"
                   </p>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500" />
+                    <img src={review.avatar} alt={review.name} className="w-12 h-12 rounded-full object-cover" />
                     <div>
                       <p className="font-semibold text-neutral-800 dark:text-neutral-100" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        {t('reviewer')} {item}
+                        {review.name}
                       </p>
                       <p className="text-sm text-neutral-600 dark:text-neutral-400" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        {t('foodLover')}
+                        {review.role}
                       </p>
                     </div>
                   </div>
@@ -342,17 +397,6 @@ export default function HomePage({
               <p className="text-neutral-400 mb-6" style={{ fontFamily: 'Inter, sans-serif' }}>
                 {t('footerDescription')}
               </p>
-              <div className="flex gap-4">
-                <a href="#" className="p-2 bg-neutral-800 dark:bg-neutral-900 rounded-full hover:bg-orange-600 transition-colors" aria-label="Social">
-                  <Share2 className="w-5 h-5" />
-                </a>
-                <a href="#" className="p-2 bg-neutral-800 dark:bg-neutral-900 rounded-full hover:bg-orange-600 transition-colors" aria-label="Photos">
-                  <Camera className="w-5 h-5" />
-                </a>
-                <a href="#" className="p-2 bg-neutral-800 dark:bg-neutral-900 rounded-full hover:bg-orange-600 transition-colors" aria-label="Contact chat">
-                  <MessageCircle className="w-5 h-5" />
-                </a>
-              </div>
             </div>
 
             {/* Contact Info */}
