@@ -14,7 +14,7 @@ from .base import Base
 # Bảng phụ many-to-many.
 # 1 địa điểm (place) có thể có nhiều concept/purpose/amenity và 1 tag cũng có thể thuộc nhiều place.
 place_concepts = Table(
-	"place_concepts",
+	"place_concepts",	
 	Base.metadata,
 	Column("place_id", ForeignKey("places.id", ondelete="CASCADE"), primary_key=True),
 	Column("concept_id", ForeignKey("concepts.id", ondelete="CASCADE"), primary_key=True),
@@ -121,8 +121,8 @@ class Place(Base):
 	address: Mapped[str | None] = mapped_column(String(512), nullable=True) # Số nhà, tên đường
 	address_unaccent: Mapped[str | None] = mapped_column(Text, nullable=True)
 	
-	latitude: Mapped[float] = mapped_column(Float)
-	longitude: Mapped[float] = mapped_column(Float)
+	latitude: Mapped[float] = mapped_column(Float, nullable = True)
+	longitude: Mapped[float] = mapped_column(Float, nullable = True)
 
 	# Additional fields for detail view
 	rating: Mapped[float | None] = mapped_column(Float, nullable=True)
