@@ -9,6 +9,7 @@ export interface RestaurantRecommendation {
 
 export interface ChatBoxRequest {
   message: string;
+  language?: string;
 }
 
 export interface ChatBoxResponse {

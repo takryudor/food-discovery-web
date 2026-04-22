@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -127,7 +121,8 @@ export default function MapView({
     toggleAmenity,
     toggleBudgetRange,
   } = useFilterStore();
-  const { searchResults, setSearchResults, clearSearchResults } = useSearchStore();
+  const { searchResults, setSearchResults, clearSearchResults } =
+    useSearchStore();
   const {
     mapMarkers,
     selectedMarkerId,
@@ -366,9 +361,12 @@ export default function MapView({
     }
   };
 
-  const handleMarkerClick = useCallback((feature: GeoJSONFeature) => {
-    setSelectedMarkerId(feature.properties?.id || null);
-  }, [setSelectedMarkerId]);
+  const handleMarkerClick = useCallback(
+    (feature: GeoJSONFeature) => {
+      setSelectedMarkerId(feature.properties?.id || null);
+    },
+    [setSelectedMarkerId],
+  );
 
   const handleSuggestionClick = (suggestion: RestaurantSuggestion) => {
     setSearchQuery(suggestion.name);
@@ -925,7 +923,7 @@ export default function MapView({
             </div>
             <div>
               <p className="text-xs font-medium text-neutral-800 dark:text-white">
-                Vị trí hiện tại
+                {t("currentLocation")}
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">
                 {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
@@ -1013,6 +1011,8 @@ function FilterSection({
   color,
   isEmpty = false,
 }: FilterSectionProps) {
+  const { t } = useLanguage();
+
   if (isEmpty) {
     return (
       <div className="space-y-2">
@@ -1036,22 +1036,29 @@ function FilterSection({
         {title}
       </h3>
       <div className="flex flex-wrap gap-2">
-        {tags.map((tag) => (
-          <motion.button
-            key={tag.id}
-            onClick={() => onToggle(tag.id)}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              selected.includes(tag.id)
-                ? colorClasses[color].selected
-                : colorClasses[color].unselected
-            }`}
-            style={{ fontFamily: "Inter, sans-serif" }}
-          >
-            {tag.name}
-          </motion.button>
-        ))}
+        {tags.map((tag) => {
+          // Dịch tag.name nếu có key trong translation, ngược lại hiện tên gốc
+          const translatedName = t(tag.name);
+          const displayName =
+            translatedName !== tag.name ? translatedName : tag.name;
+
+          return (
+            <motion.button
+              key={tag.id}
+              onClick={() => onToggle(tag.id)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                selected.includes(tag.id)
+                  ? colorClasses[color].selected
+                  : colorClasses[color].unselected
+              }`}
+              style={{ fontFamily: "Inter, sans-serif" }}
+            >
+              {displayName}
+            </motion.button>
+          );
+        })}
       </div>
     </div>
   );
