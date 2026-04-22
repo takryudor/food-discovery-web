@@ -6,7 +6,9 @@ import { motion, AnimatePresence } from "motion/react";
 import { Bot, Send, ImagePlus, ChevronDown, MapPin, X, Sparkles, Camera, Utensils, Loader2 } from "lucide-react";
 import { useLanguage } from "@/components/providers/LanguageContext";
 import { sendChatboxMessage } from "@/lib/api/ai";
+import { getRestaurantDetail } from "@/lib/api/restaurant";
 import { searchRestaurants } from "@/lib/api/search";
+import { searchRestaurantsFulltext } from "@/lib/api/search";
 import type { RestaurantRecommendation } from "@/lib/types";
 
 type AIMode = "restaurant" | "image" | "assistant";
@@ -199,6 +201,47 @@ export default function OdysseusAI({
     try {
       const resolved: SuggestedRestaurant[] = [];
       for (const rec of recs) {
+        if (rec.restaurant_id != null) {
+          try {
+            const detail = await getRestaurantDetail(rec.restaurant_id);
+            resolved.push({
+              id: detail.id,
+              name: detail.name,
+              address: detail.address,
+              lat: detail.latitude,
+              lng: detail.longitude,
+              rating: detail.rating ?? 0,
+              cuisine: rec.reason?.slice(0, 90) || "—",
+              price: detail.price_range || "—",
+            });
+            continue;
+          } catch {
+            // Fallback to name-based resolution.
+          }
+        }
+
+        const fulltext = await searchRestaurantsFulltext(rec.name, 5);
+        const bestSuggestion =
+          fulltext.find((item) => item.latitude != null && item.longitude != null) ??
+          null;
+
+        if (
+          bestSuggestion?.latitude != null &&
+          bestSuggestion?.longitude != null
+        ) {
+          resolved.push({
+            id: bestSuggestion.id,
+            name: bestSuggestion.name,
+            address: bestSuggestion.address,
+            lat: bestSuggestion.latitude,
+            lng: bestSuggestion.longitude,
+            rating: 0,
+            cuisine: rec.reason?.slice(0, 90) || "—",
+            price: "—",
+          });
+          continue;
+        }
+
         const resp = await searchRestaurants({
           query: rec.name,
           location: { lat: searchAnchor.lat, lng: searchAnchor.lng },
@@ -228,7 +271,12 @@ export default function OdysseusAI({
         }
       }
 
-      if (resolved.length === 0) {
+      const deduped = resolved.filter(
+        (item, index, arr) =>
+          arr.findIndex((candidate) => candidate.id === item.id) === index,
+      );
+
+      if (deduped.length === 0) {
         setMessages((prev) => [
           ...prev,
           { id: Date.now(), role: "ai", text: t("aiNoResult"), type: "text" },
@@ -236,7 +284,7 @@ export default function OdysseusAI({
         return;
       }
 
-      onShowRestaurantsOnMap(resolved);
+      onShowRestaurantsOnMap(deduped);
       setIsOpen(false);
     } catch (err) {
       const fallback = (err as Error).message || t("aiChatError");

@@ -25,7 +25,7 @@ export const useFilterStore = create<FilterState>((set) => ({
   selectedAmenities: [],
   selectedBudgetRanges: [],
   radius: 5,
-  numberOfPlaces: 10,
+  numberOfPlaces: 5,
   setRadius: (value) => set({ radius: value }),
   setNumberOfPlaces: (value) => set({ numberOfPlaces: value }),
   toggleConcept: (id) =>

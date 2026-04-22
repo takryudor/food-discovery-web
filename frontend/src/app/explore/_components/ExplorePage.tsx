@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { ArrowLeft, Star, Eye, MessageCircle, Clock, X } from 'lucide-react';
 import { useLanguage } from '@/components/providers/LanguageContext';
@@ -34,30 +34,39 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
   const heroY = useTransform(scrollY, [0, 400], [0, 150]);
   const heroOpacity = useTransform(scrollY, [0, 300], [1, 0.3]);
 
-  const articles = [
-    { id: 1, title: t('exploreArticle1Title'), description: t('exploreArticle1Desc'), image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836', category: t('categoryStreetFood'), readTime: '5 min' },
-    { id: 2, title: t('exploreArticle2Title'), description: t('exploreArticle2Desc'), image: 'https://images.unsplash.com/photo-1559847844-5315695dadae', category: t('categoryFineDining'), readTime: '8 min' },
-    { id: 3, title: t('exploreArticle3Title'), description: t('exploreArticle3Desc'), image: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352', category: t('categoryHealthy'), readTime: '6 min' },
-    { id: 4, title: t('exploreArticle4Title'), description: t('exploreArticle4Desc'), image: 'https://images.unsplash.com/photo-1551782450-a2132b4ba21d', category: t('categoryNightlife'), readTime: '7 min' },
-    { id: 5, title: t('exploreArticle5Title'), description: t('exploreArticle5Desc'), image: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe', category: t('categoryTraditional'), readTime: '10 min' },
-    { id: 6, title: t('exploreArticle6Title'), description: t('exploreArticle6Desc'), image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38', category: t('categoryFusion'), readTime: '6 min' },
-  ];
+  const articles = useMemo(
+    () => [
+      { id: 1, title: t('exploreArticle1Title'), description: t('exploreArticle1Desc'), image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836', category: t('categoryStreetFood'), readTime: '5 min' },
+      { id: 2, title: t('exploreArticle2Title'), description: t('exploreArticle2Desc'), image: 'https://images.unsplash.com/photo-1559847844-5315695dadae', category: t('categoryFineDining'), readTime: '8 min' },
+      { id: 3, title: t('exploreArticle3Title'), description: t('exploreArticle3Desc'), image: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352', category: t('categoryHealthy'), readTime: '6 min' },
+      { id: 4, title: t('exploreArticle4Title'), description: t('exploreArticle4Desc'), image: 'https://images.unsplash.com/photo-1551782450-a2132b4ba21d', category: t('categoryNightlife'), readTime: '7 min' },
+      { id: 5, title: t('exploreArticle5Title'), description: t('exploreArticle5Desc'), image: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe', category: t('categoryTraditional'), readTime: '10 min' },
+      { id: 6, title: t('exploreArticle6Title'), description: t('exploreArticle6Desc'), image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38', category: t('categoryFusion'), readTime: '6 min' },
+    ],
+    [t],
+  );
 
-  const latestNews = [
-    { id: 1, title: t('categoryStreetFood') + ': Top 10 2026', image: 'https://images.unsplash.com/photo-1677837698681-a0055f7e82da?w=400', date: '15/04/2026' },
-    { id: 2, title: 'Bánh mì Sài Gòn — World\'s Best', image: 'https://images.unsplash.com/photo-1600454309261-3dc9b7597637?w=400', date: '12/04/2026' },
-    { id: 3, title: 'Phở & Bún bò Festival', image: 'https://images.unsplash.com/photo-1701480253822-1842236c9a97?w=400', date: '10/04/2026' },
-    { id: 4, title: 'Cà phê Sài Gòn — Hidden Gems', image: 'https://images.unsplash.com/photo-1762390157744-128c1460ae2d?w=400', date: '08/04/2026' },
-    { id: 5, title: 'Rooftop Dining Guide', image: 'https://images.unsplash.com/photo-1748591633514-5a7524bc38c3?w=400', date: '05/04/2026' },
-    { id: 6, title: 'Dim Sum & Dumplings', image: 'https://images.unsplash.com/photo-1496116155751-2833e0c42786?w=400', date: '02/04/2026' },
-    { id: 7, title: 'Seafood Night Market', image: 'https://images.unsplash.com/photo-1761314037182-8ea3363cf3a3?w=400', date: '28/03/2026' },
-  ];
+  const latestNews = useMemo(
+    () => [
+      { id: 1, title: t('categoryStreetFood') + ': Top 10 2026', image: 'https://images.unsplash.com/photo-1677837698681-a0055f7e82da?w=400', date: '15/04/2026' },
+      { id: 2, title: 'Bánh mì Sài Gòn — World\'s Best', image: 'https://images.unsplash.com/photo-1600454309261-3dc9b7597637?w=400', date: '12/04/2026' },
+      { id: 3, title: 'Phở & Bún bò Festival', image: 'https://images.unsplash.com/photo-1701480253822-1842236c9a97?w=400', date: '10/04/2026' },
+      { id: 4, title: 'Cà phê Sài Gòn — Hidden Gems', image: 'https://images.unsplash.com/photo-1762390157744-128c1460ae2d?w=400', date: '08/04/2026' },
+      { id: 5, title: 'Rooftop Dining Guide', image: 'https://images.unsplash.com/photo-1748591633514-5a7524bc38c3?w=400', date: '05/04/2026' },
+      { id: 6, title: 'Dim Sum & Dumplings', image: 'https://images.unsplash.com/photo-1496116155751-2833e0c42786?w=400', date: '02/04/2026' },
+      { id: 7, title: 'Seafood Night Market', image: 'https://images.unsplash.com/photo-1761314037182-8ea3363cf3a3?w=400', date: '28/03/2026' },
+    ],
+    [t],
+  );
 
-  const popularArticles = [
-    { id: 1, title: t('exploreArticle1Title'), description: t('exploreArticle1Desc'), image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836', category: t('categoryStreetFood'), views: 12400, comments: 234 },
-    { id: 2, title: t('exploreArticle4Title'), description: t('exploreArticle4Desc'), image: 'https://images.unsplash.com/photo-1551782450-a2132b4ba21d', category: t('categoryNightlife'), views: 9800, comments: 187 },
-    { id: 3, title: t('exploreArticle2Title'), description: t('exploreArticle2Desc'), image: 'https://images.unsplash.com/photo-1559847844-5315695dadae', category: t('categoryFineDining'), views: 8500, comments: 156 },
-  ];
+  const popularArticles = useMemo(
+    () => [
+      { id: 1, title: t('exploreArticle1Title'), description: t('exploreArticle1Desc'), image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836', category: t('categoryStreetFood'), views: 12400, comments: 234 },
+      { id: 2, title: t('exploreArticle4Title'), description: t('exploreArticle4Desc'), image: 'https://images.unsplash.com/photo-1551782450-a2132b4ba21d', category: t('categoryNightlife'), views: 9800, comments: 187 },
+      { id: 3, title: t('exploreArticle2Title'), description: t('exploreArticle2Desc'), image: 'https://images.unsplash.com/photo-1559847844-5315695dadae', category: t('categoryFineDining'), views: 8500, comments: 156 },
+    ],
+    [t],
+  );
 
   const formatNumber = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : n.toString();
 
@@ -112,7 +121,10 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
       </section>
 
       {/* Articles Grid */}
-      <section className="max-w-7xl mx-auto px-8 py-20">
+      <section
+        className="max-w-7xl mx-auto px-8 py-20"
+        style={{ contentVisibility: 'auto', containIntrinsicSize: '1px 1200px' }}
+      >
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {articles.slice(0, visibleArticles).map((article, index) => (
             <motion.article
@@ -126,7 +138,14 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
               className="bg-white dark:bg-neutral-900 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
             >
               <div className="relative h-56 overflow-hidden">
-                <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
+                <Image
+                  src={article.image}
+                  alt={article.title}
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  className="object-cover"
+                  loading="lazy"
+                />
                 <div className="absolute top-4 left-4">
                   <span className="px-4 py-1.5 bg-orange-500 text-white text-xs rounded-full" style={{ fontFamily: 'Inter, sans-serif' }}>
                     {article.category}
@@ -167,7 +186,10 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
       </section>
 
       {/* Latest Food News — Horizontal Scroll */}
-      <section className="max-w-7xl mx-auto px-8 pb-20">
+      <section
+        className="max-w-7xl mx-auto px-8 pb-20"
+        style={{ contentVisibility: 'auto', containIntrinsicSize: '1px 1000px' }}
+      >
         <motion.h2
           initial={{ opacity: 0, x: -20 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -192,7 +214,14 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
                 className="w-64 flex-shrink-0 bg-white dark:bg-neutral-900 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
               >
                 <div className="h-36 overflow-hidden">
-                  <img src={news.image} alt={news.title} className="w-full h-full object-cover" />
+                  <Image
+                    src={news.image}
+                    alt={news.title}
+                    fill
+                    sizes="256px"
+                    className="object-cover"
+                    loading="lazy"
+                  />
                 </div>
                 <div className="p-4">
                   <h4 className="text-sm text-neutral-800 dark:text-neutral-100 mb-2 line-clamp-2" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -210,7 +239,10 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
       </section>
 
       {/* Popular Articles — Large Cards */}
-      <section className="max-w-7xl mx-auto px-8 pb-24">
+      <section
+        className="max-w-7xl mx-auto px-8 pb-24"
+        style={{ contentVisibility: 'auto', containIntrinsicSize: '1px 1200px' }}
+      >
         <motion.h2
           initial={{ opacity: 0, x: -20 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -235,7 +267,14 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
             >
               {/* Large image */}
               <div className="md:w-2/5 h-64 md:h-auto overflow-hidden relative">
-                <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
+                <Image
+                  src={article.image}
+                  alt={article.title}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 40vw"
+                  className="object-cover"
+                  loading="lazy"
+                />
                 <div className="absolute top-4 left-4">
                   <span className="px-4 py-1.5 bg-orange-500 text-white text-xs rounded-full" style={{ fontFamily: 'Inter, sans-serif' }}>
                     {article.category}
@@ -303,7 +342,14 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
                 <X className="w-5 h-5 text-neutral-800 dark:text-neutral-100" />
               </button>
               <div className="relative h-72 overflow-hidden">
-                <img src={selectedArticle.image} alt={selectedArticle.title} className="w-full h-full object-cover" />
+                <Image
+                  src={selectedArticle.image}
+                  alt={selectedArticle.title}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 768px"
+                  className="object-cover"
+                  loading="lazy"
+                />
                 {selectedArticle.category && (
                   <div className="absolute top-5 left-5">
                     <span className="px-4 py-1.5 bg-orange-500 text-white text-xs rounded-full" style={{ fontFamily: 'Inter, sans-serif' }}>

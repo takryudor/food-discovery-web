@@ -64,6 +64,7 @@ export interface SearchResult {
   latitude: number;
   longitude: number;
   rating: number;
+  distance_km?: number | null;
   match_score: number;
 }
 
@@ -78,6 +79,8 @@ export interface SearchResponse {
 
 export interface MapMarkerRequest {
   restaurant_ids: number[];
+  user_lat?: number;
+  user_lng?: number;
 }
 
 export interface GeoJSONProperties {
@@ -89,6 +92,9 @@ export interface GeoJSONProperties {
   cuisine?: string;
   rating?: number;
   price_hint?: string;
+  distance?: number;
+  distance_km?: number;
+  eta?: number;
 }
 
 export interface GeoJSONFeature {

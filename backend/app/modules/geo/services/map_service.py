@@ -50,6 +50,8 @@ class MapService:
                     avg_price=r["avg_price"],
                     rating=r["rating"],
                     is_open_now=r.get("is_open_now", True),
+                    distance=r.get("distance"),
+                    eta=r.get("eta"),
                 )
 
                 feature = GeoJSONFeature(geometry=geometry, properties=properties)

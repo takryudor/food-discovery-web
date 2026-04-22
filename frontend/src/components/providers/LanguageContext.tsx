@@ -81,6 +81,8 @@ const translations = {
     openingHours: "Giờ mở cửa",
     description: "Mô tả",
     loading: "Đang tải...",
+    auto: "Tự động",
+    distance: "Khoảng cách",
 
     login: "Đăng nhập",
     register: "Đăng ký",
@@ -260,6 +262,8 @@ const translations = {
     openingHours: "Opening Hours",
     description: "Description",
     loading: "Loading...",
+    auto: "Auto",
+    distance: "Distance",
 
     login: "Login",
     register: "Register",

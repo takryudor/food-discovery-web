@@ -22,6 +22,11 @@ import { useLanguage } from "@/components/providers/LanguageContext";
 // Fix Leaflet icon issue in Next.js
 import L from "leaflet";
 
+const VIETNAM_BOUNDS: [LatLngTuple, LatLngTuple] = [
+  [8.0, 102.0],
+  [23.7, 109.9],
+];
+
 // Create custom icons
 const userLocationIcon = new Icon({
   iconUrl:
@@ -31,11 +36,50 @@ const userLocationIcon = new Icon({
 });
 
 const restaurantIcon = new Icon({
-  iconUrl:
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23f97316'/%3E%3Cpath d='M7 12h10M12 7v10'/%3E%3C/svg%3E",
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
+  iconUrl: "/food-marker.svg",
+  iconSize: [42, 42],
+  iconAnchor: [21, 38],
+  popupAnchor: [0, -34],
 });
+
+const selectedRestaurantIcon = new Icon({
+  iconUrl: "/food-marker-selected.svg",
+  iconSize: [50, 50],
+  iconAnchor: [25, 46],
+  popupAnchor: [0, -40],
+});
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function haversineDistanceKm(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+): number {
+  const earthRadiusKm = 6371;
+  const dLat = ((toLat - fromLat) * Math.PI) / 180;
+  const dLng = ((toLng - fromLng) * Math.PI) / 180;
+  const originLat = (fromLat * Math.PI) / 180;
+  const destinationLat = (toLat * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(originLat) * Math.cos(destinationLat) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return earthRadiusKm * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
 
 interface MapComponentProps {
   userLocation: UserLocation;
@@ -163,14 +207,22 @@ export default function MapComponent({
       <MapContainer
         center={center}
         zoom={14}
+        minZoom={5}
+        maxZoom={18}
         scrollWheelZoom={true}
         zoomControl={false}
         className="w-full h-full"
         style={{ zIndex: 1 }}
+        maxBounds={VIETNAM_BOUNDS}
+        maxBoundsViscosity={1}
+        preferCanvas={true}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          bounds={VIETNAM_BOUNDS}
+          noWrap={true}
+          updateWhenIdle={true}
         />
         {mapLeafletRef ? <MapInstanceExposer mapRef={mapLeafletRef} /> : null}
         <MapCenterUpdater center={center} enabled={syncCenterToUser} />
@@ -195,7 +247,11 @@ export default function MapComponent({
             <Marker
               key={feature.properties.id}
               position={coords}
-              icon={restaurantIcon}
+              icon={
+                selectedMarkerId === feature.properties.id
+                  ? selectedRestaurantIcon
+                  : restaurantIcon
+              }
               ref={(marker) => {
                 markerRefs.current[feature.properties.id] = marker;
               }}
@@ -211,6 +267,24 @@ export default function MapComponent({
             >
               <Popup autoPan={false} closeButton={false}>
                 <div className="p-2 min-w-[200px]">
+                  {(() => {
+                    const rawDistance =
+                      toNumber(feature.properties.distance_km) ??
+                      toNumber(feature.properties.distance) ??
+                      haversineDistanceKm(
+                        userLocation.lat,
+                        userLocation.lng,
+                        feature.geometry.coordinates[1],
+                        feature.geometry.coordinates[0],
+                      );
+
+                    return (
+                      <div className="mb-2 grid grid-cols-[auto_1fr] gap-x-2 text-sm text-gray-700">
+                        <span className="font-medium">{t("distance")}:</span>
+                        <span>{rawDistance.toFixed(2)} km</span>
+                      </div>
+                    );
+                  })()}
                   <h3 className="font-semibold text-base mb-1">
                     {feature.properties.name}
                   </h3>

@@ -163,6 +163,23 @@ export default function MapView({
     [mapMarkers, odysseusMarkers, isMapLocked],
   );
 
+  const zoomToFeatureCluster = useCallback((features: GeoJSONFeature[]) => {
+    const map = mapLeafletRef.current;
+    if (!map || features.length === 0) return;
+
+    const bounds = features.map((feature) => [
+      feature.geometry.coordinates[1],
+      feature.geometry.coordinates[0],
+    ]) as [number, number][];
+
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 16);
+      return;
+    }
+
+    map.fitBounds(bounds, { padding: [48, 48], maxZoom: 16 });
+  }, []);
+
   const handleOdysseusRestaurants = useCallback(
     (rows: SuggestedRestaurant[]) => {
       const mapped: GeoJSONFeature[] = rows.map((r) => ({
@@ -181,9 +198,32 @@ export default function MapView({
           price_hint: r.price,
         },
       }));
+
+      // Align AI map behavior with regular search UX.
+      clearSearchResults();
+      clearMapState();
+      setError(null);
+      setHasSearched(true);
+      setShowFilters(false);
+      setShowSuggestions(false);
+      setShowEmptyMessage(false);
+      setIsMapLocked(false);
+      setRestorableMapMarkers(null);
+
       setOdysseusMarkers(mapped);
+      setSelectedMarkerId(mapped[0]?.properties.id ?? null);
+
+      // Wait one frame so markers are rendered before fitting viewport.
+      requestAnimationFrame(() => {
+        zoomToFeatureCluster(mapped);
+      });
     },
-    [],
+    [
+      clearMapState,
+      clearSearchResults,
+      setSelectedMarkerId,
+      zoomToFeatureCluster,
+    ],
   );
 
   // UI states
@@ -209,6 +249,7 @@ export default function MapView({
   );
 
   const radiusOptions = [3, 5, 8, 10];
+  const numberOfPlaceOptions = [1, 3, 5, 8, 10];
   const isSearchActive = isSearchFocused || showSuggestions;
 
   useEffect(() => {
@@ -398,9 +439,29 @@ export default function MapView({
 
           const markers = await getMapMarkers({
             restaurant_ids: restaurantIds,
+            user_lat: userLocation.lat,
+            user_lng: userLocation.lng,
           });
           console.log("[DEBUG] Map markers received:", markers);
+          const distanceById = new Map(
+            response.items.map((item) => [item.id, item.distance_km ?? null]),
+          );
           const nextMarkers = [...markers.features];
+          nextMarkers.forEach((feature) => {
+            const searchDistance = distanceById.get(feature.properties.id);
+            if (
+              feature.properties.distance == null &&
+              searchDistance != null
+            ) {
+              feature.properties.distance = searchDistance;
+            }
+            if (
+              feature.properties.distance_km == null &&
+              searchDistance != null
+            ) {
+              feature.properties.distance_km = searchDistance;
+            }
+          });
           if (
             focusSuggestion?.latitude != null &&
             focusSuggestion?.longitude != null &&
@@ -911,12 +972,11 @@ export default function MapView({
                     className="w-full px-4 py-4 rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white/50 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
                     style={{ fontFamily: "Inter, sans-serif" }}
                   >
-                    {[
-                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
-                      18, 19, 20,
-                    ].map((num) => (
+                    {numberOfPlaceOptions.map((num) => (
                       <option key={num} value={num}>
-                        {num} {t("restaurants")}
+                        {num === 5
+                          ? `${t("auto")} (5 ${t("restaurants")})`
+                          : `${num} ${t("restaurants")}`}
                       </option>
                     ))}
                   </select>
@@ -1249,6 +1309,75 @@ const colorClasses = {
   },
 };
 
+const tagTranslationKeyMap: Record<string, string> = {
+  healthy: "healthyFood",
+  healthy_food: "healthyFood",
+  "dac-san": "specialty",
+  dac_san: "specialty",
+  specialty: "specialty",
+  "fast-food": "fastFood",
+  fast_food: "fastFood",
+  vegetarian: "vegetarian",
+  chay: "vegetarian",
+  "hen-ho": "datingNight",
+  hen_ho: "datingNight",
+  "date-night": "datingNight",
+  "gia-dinh": "familyGathering",
+  gia_dinh: "familyGathering",
+  family: "familyGathering",
+  work: "businessMeeting",
+  business: "businessMeeting",
+  "business-meeting": "businessMeeting",
+  "ban-be": "casualHangout",
+  ban_be: "casualHangout",
+  hangout: "casualHangout",
+  solo: "soloDining",
+  "mot-minh": "soloDining",
+  mot_minh: "soloDining",
+  parking: "carParking",
+  "car-parking": "carParking",
+  "pet-friendly": "petFriendly",
+  pet_friendly: "petFriendly",
+  "may-lanh": "airConditioned",
+  may_lanh: "airConditioned",
+  "air-conditioned": "airConditioned",
+  "e-payment": "digitalPayment",
+  "digital-payment": "digitalPayment",
+  digital_payment: "digitalPayment",
+  "kids-corner": "kidsCorner",
+  kids_corner: "kidsCorner",
+  "under-100k": "under100k",
+  "100k-200k": "range100kTo200k",
+  "200k-500k": "range200kTo500k",
+  "500k-1tr": "range500kTo1tr",
+  "above-1tr": "above1tr",
+};
+
+function normalizeKey(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function resolveTagLabel(tag: Tag, t: (key: string) => string): string {
+  const fromSlug = tag.slug ? tagTranslationKeyMap[normalizeKey(tag.slug)] : undefined;
+  if (fromSlug) {
+    return t(fromSlug);
+  }
+
+  const normalizedName = normalizeKey(tag.name);
+  const fromName = tagTranslationKeyMap[normalizedName];
+  if (fromName) {
+    return t(fromName);
+  }
+
+  const direct = t(tag.name);
+  return direct !== tag.name ? direct : tag.name;
+}
+
 function FilterSection({
   title,
   tags,
@@ -1283,10 +1412,7 @@ function FilterSection({
       </h3>
       <div className="flex flex-wrap gap-2">
         {tags.map((tag) => {
-          // Dịch tag.name nếu có key trong translation, ngược lại hiện tên gốc
-          const translatedName = t(tag.name);
-          const displayName =
-            translatedName !== tag.name ? translatedName : tag.name;
+          const displayName = resolveTagLabel(tag, t);
 
           return (
             <motion.button
