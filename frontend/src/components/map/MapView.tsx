@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,6 +16,7 @@ import {
   Check,
   Plus,
   Minus,
+  ChevronRight,
 } from "lucide-react";
 import L from "leaflet";
 import { useLanguage } from "@/components/providers/LanguageContext";
@@ -127,7 +122,8 @@ export default function MapView({
     toggleAmenity,
     toggleBudgetRange,
   } = useFilterStore();
-  const { searchResults, setSearchResults, clearSearchResults } = useSearchStore();
+  const { searchResults, setSearchResults, clearSearchResults } =
+    useSearchStore();
   const {
     mapMarkers,
     selectedMarkerId,
@@ -167,6 +163,7 @@ export default function MapView({
 
   // UI states
   const [showFilters, setShowFilters] = useState(true);
+  const [showEmptyMessage, setShowEmptyMessage] = useState(true);
   const [showAiRecommendations, setShowAiRecommendations] = useState(
     aiRecommendations.length > 0,
   );
@@ -303,6 +300,7 @@ export default function MapView({
     setError(null);
     setShowFilters(false);
     setShowSuggestions(false);
+    setShowEmptyMessage(true);
 
     try {
       console.log("[DEBUG] Starting search with params:", {
@@ -366,9 +364,12 @@ export default function MapView({
     }
   };
 
-  const handleMarkerClick = useCallback((feature: GeoJSONFeature) => {
-    setSelectedMarkerId(feature.properties?.id || null);
-  }, [setSelectedMarkerId]);
+  const handleMarkerClick = useCallback(
+    (feature: GeoJSONFeature) => {
+      setSelectedMarkerId(feature.properties?.id || null);
+    },
+    [setSelectedMarkerId],
+  );
 
   const handleSuggestionClick = (suggestion: RestaurantSuggestion) => {
     setSearchQuery(suggestion.name);
@@ -464,6 +465,15 @@ export default function MapView({
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
                 <div className="flex items-center gap-3">
+                  <motion.button
+                    onClick={() => setShowFilters(false)}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-1.5 -ml-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
+                    title="Đóng"
+                  >
+                    <ChevronRight className="w-6 h-6 text-neutral-500" />
+                  </motion.button>
                   <SlidersHorizontal className="w-6 h-6 text-orange-600" />
                   <h2
                     className="text-2xl font-bold text-neutral-800 dark:text-white"
@@ -782,13 +792,23 @@ export default function MapView({
       )}
 
       {/* Empty results message */}
-      {!isLoading && searchResults.length === 0 && !showFilters && !error && (
+      {!isLoading && searchResults.length === 0 && !showFilters && !error && showEmptyMessage && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] text-center"
         >
-          <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50 dark:border-neutral-700/50">
+          <div className="relative bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50 dark:border-neutral-700/50 min-w-[320px]">
+            
+            {/* Nút đóng (X) ở góc phải */}
+            <button 
+              onClick={() => setShowEmptyMessage(false)}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-400"
+            >
+              <Plus className="w-5 h-5 rotate-45" /> {/* Sử dụng icon Plus xoay 45 độ thành X */}
+            </button>
+
             <Search className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-neutral-800 dark:text-white mb-2">
               {t("noResults")}
@@ -796,14 +816,25 @@ export default function MapView({
             <p className="text-neutral-500 dark:text-neutral-400 mb-6">
               {t("noResultsDesc")}
             </p>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setShowFilters(true)}
-              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-semibold"
-            >
-              {t("openFilters")}
-            </motion.button>
+
+            <div className="flex flex-col gap-2">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowFilters(true)}
+                className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-semibold shadow-lg"
+              >
+                {t("openFilters")}
+              </motion.button>
+              
+              {/* Nút "Để sau" */}
+              <button
+                onClick={() => setShowEmptyMessage(false)}
+                className="px-6 py-2 text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+              >
+                {t("Để sau")} {/* Hoặc text cứng nếu bạn chưa có i18n cho key này */}
+              </button>
+            </div>
           </div>
         </motion.div>
       )}
@@ -925,7 +956,7 @@ export default function MapView({
             </div>
             <div>
               <p className="text-xs font-medium text-neutral-800 dark:text-white">
-                Vị trí hiện tại
+                {t("currentLocation")}
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">
                 {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
@@ -1013,6 +1044,8 @@ function FilterSection({
   color,
   isEmpty = false,
 }: FilterSectionProps) {
+  const { t } = useLanguage();
+
   if (isEmpty) {
     return (
       <div className="space-y-2">
@@ -1036,22 +1069,29 @@ function FilterSection({
         {title}
       </h3>
       <div className="flex flex-wrap gap-2">
-        {tags.map((tag) => (
-          <motion.button
-            key={tag.id}
-            onClick={() => onToggle(tag.id)}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              selected.includes(tag.id)
-                ? colorClasses[color].selected
-                : colorClasses[color].unselected
-            }`}
-            style={{ fontFamily: "Inter, sans-serif" }}
-          >
-            {tag.name}
-          </motion.button>
-        ))}
+        {tags.map((tag) => {
+          // Dịch tag.name nếu có key trong translation, ngược lại hiện tên gốc
+          const translatedName = t(tag.name);
+          const displayName =
+            translatedName !== tag.name ? translatedName : tag.name;
+
+          return (
+            <motion.button
+              key={tag.id}
+              onClick={() => onToggle(tag.id)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                selected.includes(tag.id)
+                  ? colorClasses[color].selected
+                  : colorClasses[color].unselected
+              }`}
+              style={{ fontFamily: "Inter, sans-serif" }}
+            >
+              {displayName}
+            </motion.button>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import os
 
 import httpx
+import math
 from fastapi import HTTPException
 
 from app.modules.geo.schemas import RouteResponse
@@ -15,7 +16,34 @@ class NavCalculator:
         # Lấy API Key từ biến môi trường (cấu hình trong file .env)
         self.api_key = os.getenv("GOOGLE_MAPS_API_KEY")
         self.base_url = "https://maps.googleapis.com/maps/api/distancematrix/json"
+    
+    async def estimate_simple_nav(
+            self, origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float
+    ) -> dict: 
+        """
+        Tính toán khoảng cách theo đường chim bay (Haversine formula).
+        Dùng để hiển thị ETA sơ bộ cho danh sách Map Markers mà không tốn tiền gọi Google API
+        """
+        R = 6371.0 # Bán kính Trái Đất (km)
 
+        # Chuyển đổi tọa độ sang radian
+        lat1, lon1 = math.radians(origin_lat), math.radians(origin_lng)
+        lat2, lon2 = math.radians(dest_lat), math.radians(dest_lng)
+
+        dlon = lon2 - lon1 
+        dlat = lat2 - lat1 
+
+        # Công thức haversine 
+        a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        distance_km = round(R * c)
+
+        # ước tính thời gian: giả sử tốc độ trung bình trong thành phố là khoảng 35 km/h (khoảng 0.5833 km/ phút)
+        eta_minutes  = math.ceil(distance_km / 0.5833)
+
+        return {"distance": distance_km, "duration": eta_minutes}
+    
     async def get_route_info(
         self,
         origin_lat: float,
