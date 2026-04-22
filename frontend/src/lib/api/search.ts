@@ -75,7 +75,7 @@ export async function searchRestaurantsFulltext(
       path: "/restaurants/search/fulltext",
       method: "GET",
       query: {
-        q: query,
+        query: query,
         limit,
       },
     });
