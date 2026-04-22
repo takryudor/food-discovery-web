@@ -243,6 +243,9 @@ class BudgetRange(Base):
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 	name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
 	slug: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+	# Optional numeric range (VND). Useful for min/max budget filter.
+	min_vnd: Mapped[int | None] = mapped_column(Integer, nullable=True)
+	max_vnd: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 	places: Mapped[list[Place]] = relationship(
 		secondary=place_budget_ranges,

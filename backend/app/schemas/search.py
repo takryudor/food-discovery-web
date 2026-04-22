@@ -79,6 +79,10 @@ class SearchRequest(BaseModel):
 	budget_range_ids: list[int] = Field(default_factory=list)
 	dish_ids: list[int] = Field(default_factory=list)
 
+	# Budget numeric range (VND). Applied via BudgetRange.min_vnd/max_vnd overlap.
+	budget_min_vnd: int | None = Field(default=None, ge=0)
+	budget_max_vnd: int | None = Field(default=None, ge=0)
+
 	# Match mode per group:
 	# - "any": place matches if it has at least one selected tag in that group
 	# - "all": place matches only if it has all selected tags in that group
@@ -96,6 +100,16 @@ class SearchRequest(BaseModel):
 	# - "default": ILIKE + sort theo id (ổn định, giống MVP cũ).
 	# - "smart": Postgres dùng FTS + ts_rank ưu tiên relevance; kèm boost rating trong match_score.
 	ranking: Literal["default", "smart"] = "smart"
+
+	# Sort option cho FE:
+	# - "relevance": theo ranking hiện tại (smart/default) và/hoặc distance nếu đang "near me".
+	# - "distance": gần trước (chỉ có ý nghĩa khi có location).
+	# - "rating": rating cao trước (null xuống cuối).
+	# - "popular": dựa trên số user_activities (VIEW/FAVORITE/SEARCH...).
+	sort: Literal["relevance", "distance", "rating", "popular"] = "relevance"
+
+	# Nếu true: chỉ trả các quán đang mở (dựa trên places.open_hours).
+	open_now: bool = False
 
 	# Nếu true: trả thêm facet counts để FE render filter "có bao nhiêu kết quả"
 	include_facets: bool = False
@@ -178,6 +192,25 @@ class SearchRequest(BaseModel):
 		except (TypeError, ValueError):
 			raise ValueError("offset must be an integer") from None
 
+	@field_validator("budget_min_vnd", "budget_max_vnd", mode="before")
+	@classmethod
+	def normalize_budget_vnd(cls, v: object) -> int | None:
+		if v is None or v == "":
+			return None
+		if isinstance(v, bool):
+			raise ValueError("budget must be an integer")
+		try:
+			return int(v)
+		except (TypeError, ValueError):
+			raise ValueError("budget must be an integer") from None
+
+	@model_validator(mode="after")
+	def validate_budget_range(self):
+		if self.budget_min_vnd is not None and self.budget_max_vnd is not None:
+			if self.budget_min_vnd > self.budget_max_vnd:
+				raise ValueError("budget_min_vnd must be <= budget_max_vnd")
+		return self
+
 	@model_validator(mode="before")
 	@classmethod
 	def default_location_when_radius_only(cls, data: object):
@@ -204,6 +237,18 @@ class SearchRequest(BaseModel):
 			raise ValueError('ranking must be "default" or "smart"')
 		raise ValueError("ranking must be a string")
 
+	@field_validator("sort", mode="before")
+	@classmethod
+	def normalize_sort(cls, v: object) -> str:
+		if v is None:
+			return "relevance"
+		if isinstance(v, str):
+			s = v.strip().lower()
+			if s in ("relevance", "distance", "rating", "popular"):
+				return s
+			raise ValueError('sort must be one of: "relevance", "distance", "rating", "popular"')
+		raise ValueError("sort must be a string")
+
 
 class PlaceOut(BaseModel):
 	"""
@@ -213,8 +258,6 @@ class PlaceOut(BaseModel):
 	id: int
 	name: str
 	address: str | None = None
-	latitude: float
-	longitude: float
 
 	# Computed fields
 	# Field tính toán (không lưu DB)

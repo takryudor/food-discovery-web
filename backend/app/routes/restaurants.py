@@ -66,6 +66,9 @@ def get_restaurant_detail(
 def get_restaurant_suggestions(
     q: str = Query(..., min_length=1, description="Từ khóa tìm kiếm, tối thiểu 1 ký tự"),
     limit: int = Query(default=8, ge=1, le=20, description="Số lượng kết quả tối đa (1-20, mặc định 8)"),
+    lat: float | None = Query(default=None, ge=-90, le=90, description="Vĩ độ (optional) để trả distance_km"),
+    lng: float | None = Query(default=None, ge=-180, le=180, description="Kinh độ (optional) để trả distance_km"),
+    radius_km: float | None = Query(default=None, gt=0, le=50, description="Bán kính (km, optional) để lọc gợi ý"),
     db: Session = Depends(get_db),
 ) -> FulltextSearchResponse:
     """
@@ -92,7 +95,13 @@ def get_restaurant_suggestions(
             detail="QUERY_CANNOT_BE_EMPTY",
         )
 
-    suggestions = search_restaurant_suggestions(db, normalized_query, limit)
+    location = (lat, lng) if (lat is not None and lng is not None) else None
+    if radius_km is not None and location is None:
+        raise HTTPException(status_code=422, detail="RADIUS_REQUIRES_LOCATION")
+
+    suggestions = search_restaurant_suggestions(
+        db, normalized_query, limit, location=location, radius_km=radius_km
+    )
 
     return FulltextSearchResponse(
         items=[
@@ -100,8 +109,7 @@ def get_restaurant_suggestions(
                 id=item["id"],
                 name=item["name"],
                 address=item["address"],
-                latitude=item.get("latitude"),
-                longitude=item.get("longitude"),
+                distance_km=item.get("distance_km"),
             )
             for item in suggestions
         ]

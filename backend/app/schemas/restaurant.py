@@ -41,8 +41,7 @@ class RestaurantSuggestion(BaseModel):
     id: int
     name: str
     address: str | None = None
-    latitude: float | None = None
-    longitude: float | None = None
+    distance_km: float | None = None
 
 
 class FulltextSearchResponse(BaseModel):
