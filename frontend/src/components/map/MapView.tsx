@@ -18,7 +18,7 @@ import {
   Minus,
   ChevronRight,
 } from "lucide-react";
-import L from "leaflet";
+import type { Map as LeafletMap } from "leaflet";
 import { useLanguage } from "@/components/providers/LanguageContext";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import SettingsDropdown from "@/components/common/SettingsDropdown";
@@ -34,12 +34,15 @@ import { searchRestaurants, searchRestaurantsFulltext } from "@/lib/api/search";
 import {
   Tag,
   GeoJSONFeature,
+  RestaurantDetail,
   RestaurantSuggestion,
   type UserLocation,
 } from "@/lib/types";
 import { useFilterStore } from "@/store/filterStore";
 import { useMapStore } from "@/store/mapStore";
 import { useSearchStore } from "@/store/searchStore";
+
+const PICK_LOCATION_OFFSET_PX = 44;
 
 // Load Leaflet map only on client to avoid `window is not defined` during SSR.
 const MapComponent = dynamic(() => import("./MapComponent"), {
@@ -77,14 +80,22 @@ export default function MapView({
     null,
   );
   const [isSettingLocation, setIsSettingLocation] = useState(false);
-  const mapLeafletRef = useRef<L.Map | null>(null);
+  const [isMapLocked, setIsMapLocked] = useState(false);
+  const [restorableMapMarkers, setRestorableMapMarkers] =
+    useState<GeoJSONFeature[] | null>(null);
+  const mapLeafletRef = useRef<LeafletMap | null>(null);
 
   const userLocation = manualLocation ?? gpsLocation;
 
   const handleConfirmPickedLocation = useCallback(() => {
     const map = mapLeafletRef.current;
     if (!map) return;
-    const c = map.getCenter();
+    const size = map.getSize();
+    const selectedPoint: [number, number] = [
+      size.x / 2,
+      size.y / 2 + PICK_LOCATION_OFFSET_PX,
+    ];
+    const c = map.containerPointToLatLng(selectedPoint);
     setManualLocation({ lat: c.lat, lng: c.lng });
     setIsSettingLocation(false);
   }, []);
@@ -122,8 +133,7 @@ export default function MapView({
     toggleAmenity,
     toggleBudgetRange,
   } = useFilterStore();
-  const { searchResults, setSearchResults, clearSearchResults } =
-    useSearchStore();
+  const { searchResults, setSearchResults, clearSearchResults } = useSearchStore();
   const {
     mapMarkers,
     selectedMarkerId,
@@ -134,8 +144,8 @@ export default function MapView({
   const [odysseusMarkers, setOdysseusMarkers] = useState<GeoJSONFeature[]>([]);
 
   const markersForMap = useMemo(
-    () => [...mapMarkers, ...odysseusMarkers],
-    [mapMarkers, odysseusMarkers],
+    () => (isMapLocked ? [] : [...mapMarkers, ...odysseusMarkers]),
+    [mapMarkers, odysseusMarkers, isMapLocked],
   );
 
   const handleOdysseusRestaurants = useCallback(
@@ -191,6 +201,8 @@ export default function MapView({
     const newValue = !useMockData;
     setUseMockData(newValue);
     setApiMockData(newValue);
+    setIsMapLocked(false);
+    setRestorableMapMarkers(null);
 
     clearSearchResults();
     clearMapState();
@@ -211,6 +223,8 @@ export default function MapView({
     setError(null);
 
     try {
+      setIsMapLocked(false);
+      setRestorableMapMarkers(null);
       clearSearchResults();
       clearMapState();
 
@@ -301,6 +315,8 @@ export default function MapView({
     setShowFilters(false);
     setShowSuggestions(false);
     setShowEmptyMessage(true);
+    setIsMapLocked(false);
+    setRestorableMapMarkers(null);
 
     try {
       console.log("[DEBUG] Starting search with params:", {
@@ -384,6 +400,36 @@ export default function MapView({
     [setSelectedMarkerId],
   );
 
+  const handleConfirmRestaurant = useCallback(
+    (restaurant: RestaurantDetail) => {
+      if (!restorableMapMarkers) {
+        setRestorableMapMarkers(mapMarkers);
+      }
+      setIsMapLocked(true);
+      setSelectedMarkerId(null);
+      clearMapState();
+      setShowFilters(false);
+      setShowSuggestions(false);
+      setShowEmptyMessage(false);
+      console.log("[DEBUG] Restaurant confirmed:", restaurant);
+    },
+    [
+      clearMapState,
+      mapMarkers,
+      restorableMapMarkers,
+      setSelectedMarkerId,
+    ],
+  );
+
+  const handleViewOtherRestaurants = useCallback(() => {
+    setSelectedMarkerId(null);
+    if (restorableMapMarkers) {
+      setMapMarkers(restorableMapMarkers);
+      setIsMapLocked(false);
+      setRestorableMapMarkers(null);
+    }
+  }, [restorableMapMarkers, setMapMarkers, setSelectedMarkerId]);
+
   const handleSuggestionClick = (suggestion: RestaurantSuggestion) => {
     setSearchQuery(suggestion.name);
     setShowSuggestions(false);
@@ -434,6 +480,8 @@ export default function MapView({
           markers={markersForMap}
           selectedMarkerId={selectedMarkerId}
           onMarkerClick={handleMarkerClick}
+          onConfirmRestaurant={handleConfirmRestaurant}
+          onViewOtherRestaurants={handleViewOtherRestaurants}
           isLoading={isLoading}
           mapLeafletRef={mapLeafletRef}
           syncCenterToUser={!isSettingLocation}

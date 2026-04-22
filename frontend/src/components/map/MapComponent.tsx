@@ -42,6 +42,8 @@ interface MapComponentProps {
   markers: GeoJSONFeature[];
   selectedMarkerId: number | null;
   onMarkerClick: (feature: GeoJSONFeature) => void;
+  onConfirmRestaurant: (restaurant: RestaurantDetail) => void;
+  onViewOtherRestaurants: () => void;
   isLoading: boolean;
   /** When false, map view is not forced to follow `userLocation` (e.g. user is panning to pick a point). */
   syncCenterToUser?: boolean;
@@ -87,6 +89,8 @@ export default function MapComponent({
   markers,
   selectedMarkerId,
   onMarkerClick,
+  onConfirmRestaurant,
+  onViewOtherRestaurants,
   isLoading,
   syncCenterToUser = true,
   hideUserMarker = false,
@@ -163,7 +167,7 @@ export default function MapComponent({
         {/* User location marker */}
         {!hideUserMarker ? (
           <Marker position={center} icon={userLocationIcon}>
-            <Popup>
+            <Popup autoPan={false}>
               <div className="text-sm font-medium">{t("yourLocation")}</div>
             </Popup>
           </Marker>
@@ -185,7 +189,7 @@ export default function MapComponent({
                 click: () => handleMarkerClick(feature),
               }}
             >
-              <Popup>
+              <Popup autoPan={false}>
                 <div className="p-2 min-w-[200px]">
                   <h3 className="font-semibold text-base mb-1">
                     {feature.properties.name}
@@ -250,7 +254,11 @@ export default function MapComponent({
             restaurant={selectedRestaurant}
             onClose={() => {
               setSelectedRestaurant(null);
-              onMarkerClick({} as GeoJSONFeature);
+              onViewOtherRestaurants();
+            }}
+            onConfirm={() => {
+              onConfirmRestaurant(selectedRestaurant);
+              setSelectedRestaurant(null);
             }}
           />
         )}
@@ -263,11 +271,13 @@ export default function MapComponent({
 interface RestaurantDetailPanelProps {
   restaurant: RestaurantDetail;
   onClose: () => void;
+  onConfirm: () => void;
 }
 
 function RestaurantDetailPanel({
   restaurant,
   onClose,
+  onConfirm,
 }: RestaurantDetailPanelProps) {
   const { t } = useLanguage();
   return (
@@ -447,11 +457,12 @@ function RestaurantDetailPanel({
             onClick={onClose}
             className="flex-1 py-3.5 border-2 border-gray-200 text-gray-700 rounded-2xl font-semibold text-sm hover:border-gray-300 transition-colors"
           >
-            {t("holdOn")}
+            {t("viewOtherRestaurants")}
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            onClick={onConfirm}
             className="flex-1 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-2xl font-semibold text-sm shadow-lg shadow-orange-500/25"
           >
             {t("iWillEatHere")}

@@ -186,6 +186,7 @@ const translations = {
     loadingMap: "Đang tải bản đồ...",
     searchError: "Có lỗi xảy ra khi tìm kiếm",
     loadRestaurantError: "Không thể tải thông tin nhà hàng",
+    viewOtherRestaurants: "Xem quán khác",
     filterLoading: "Đang tải...",
   },
   en: {
@@ -364,6 +365,7 @@ const translations = {
     loadingMap: "Loading map...",
     searchError: "An error occurred while searching",
     loadRestaurantError: "Could not load restaurant details",
+    viewOtherRestaurants: "View other restaurants",
     filterLoading: "Loading...",
   },
 };
