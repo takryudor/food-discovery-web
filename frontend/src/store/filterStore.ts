@@ -13,6 +13,7 @@ interface FilterState {
   togglePurpose: (id: number) => void;
   toggleAmenity: (id: number) => void;
   toggleBudgetRange: (id: number) => void;
+  clearFilters: () => void;
 }
 
 function toggleId(list: number[], id: number): number[] {
@@ -38,4 +39,13 @@ export const useFilterStore = create<FilterState>((set) => ({
     set((state) => ({
       selectedBudgetRanges: toggleId(state.selectedBudgetRanges, id),
     })),
+  clearFilters: () =>
+    set({
+      selectedConcepts: [],
+      selectedPurposes: [],
+      selectedAmenities: [],
+      selectedBudgetRanges: [],
+      radius: 5,
+      numberOfPlaces: 5,
+    }),
 }));

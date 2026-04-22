@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 import { Utensils, ChevronRight, Star, MapPin, Phone, Mail} from 'lucide-react';
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/components/providers/LanguageContext";
 import { useAuth } from "@/components/auth/AuthContext";
 import SettingsDropdown from "@/components/common/SettingsDropdown";
@@ -22,26 +22,100 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
   const { isAuthenticated } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const topRestaurantsScrollRef = useRef<HTMLDivElement>(null);
+  const reviewScrollRef = useRef<HTMLDivElement>(null);
+  const topDragStateRef = useRef({ isDragging: false, startX: 0, scrollLeft: 0, moved: false });
+  const reviewDragStateRef = useRef({ isDragging: false, startX: 0, scrollLeft: 0, moved: false });
+  const isReviewAutoPausedRef = useRef(false);
 
-  // Auto-scroll for reviews
-  useEffect(() => {
-    const container = scrollContainerRef.current;
+  const startMouseDrag = (
+    event: React.MouseEvent<HTMLDivElement>,
+    containerRef: React.RefObject<HTMLDivElement | null>,
+    dragStateRef: React.MutableRefObject<{ isDragging: boolean; startX: number; scrollLeft: number; moved: boolean }>,
+  ) => {
+    if (event.button !== 0) return;
+
+    const container = containerRef.current;
     if (!container) return;
 
-    let scrollAmount = 0;
-    const scrollSpeed = 0.5;
+    event.preventDefault();
 
-    const scroll = () => {
-      scrollAmount += scrollSpeed;
-      if (container.scrollWidth > 0 && scrollAmount >= container.scrollWidth / 2) {
-        scrollAmount = 0;
+    dragStateRef.current.isDragging = true;
+    dragStateRef.current.startX = event.pageX - container.offsetLeft;
+    dragStateRef.current.scrollLeft = container.scrollLeft;
+    dragStateRef.current.moved = false;
+  };
+
+  const moveMouseDrag = (
+    event: React.MouseEvent<HTMLDivElement>,
+    containerRef: React.RefObject<HTMLDivElement | null>,
+    dragStateRef: React.MutableRefObject<{ isDragging: boolean; startX: number; scrollLeft: number; moved: boolean }>,
+  ) => {
+    const container = containerRef.current;
+    if (!container || !dragStateRef.current.isDragging) return;
+
+    event.preventDefault();
+    const x = event.pageX - container.offsetLeft;
+    const walk = (x - dragStateRef.current.startX) * 1.15;
+    if (Math.abs(walk) > 4) {
+      dragStateRef.current.moved = true;
+    }
+    container.scrollLeft = dragStateRef.current.scrollLeft - walk;
+  };
+
+  const endMouseDrag = (
+    dragStateRef: React.MutableRefObject<{ isDragging: boolean; startX: number; scrollLeft: number; moved: boolean }>,
+  ) => {
+    dragStateRef.current.isDragging = false;
+  };
+
+  const suppressClickAfterDrag = (
+    event: React.MouseEvent<HTMLDivElement>,
+    dragStateRef: React.MutableRefObject<{ isDragging: boolean; startX: number; scrollLeft: number; moved: boolean }>,
+  ) => {
+    if (dragStateRef.current.moved) {
+      event.preventDefault();
+      event.stopPropagation();
+      dragStateRef.current.moved = false;
+    }
+  };
+
+  useEffect(() => {
+    const container = reviewScrollRef.current;
+    if (!container) return;
+
+    let animationFrameId = 0;
+    const scrollSpeed = 0.45;
+
+    const step = () => {
+      if (!isReviewAutoPausedRef.current && !reviewDragStateRef.current.isDragging) {
+        const loopWidth = container.scrollWidth / 2;
+
+        if (loopWidth > 0) {
+          container.scrollLeft += scrollSpeed;
+
+          if (container.scrollLeft >= loopWidth) {
+            container.scrollLeft = 0;
+          }
+        }
       }
-      container.scrollLeft = scrollAmount;
+
+      animationFrameId = window.requestAnimationFrame(step);
     };
 
-    const intervalId = setInterval(scroll, 20);
-    return () => clearInterval(intervalId);
+    animationFrameId = window.requestAnimationFrame(step);
+
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, []);
+
+  useEffect(() => {
+    const clearDragState = () => {
+      topDragStateRef.current.isDragging = false;
+      reviewDragStateRef.current.isDragging = false;
+    };
+
+    window.addEventListener('mouseup', clearDragState);
+    return () => window.removeEventListener('mouseup', clearDragState);
   }, []);
 
   return (
@@ -225,7 +299,17 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
             {t('topRestaurants')}
           </motion.h2>
 
-          <div className="grid md:grid-cols-4 gap-6">
+          <div
+            ref={topRestaurantsScrollRef}
+            className="flex gap-6 overflow-x-auto overscroll-x-contain scroll-smooth pb-4 md:grid md:grid-cols-4 md:overflow-visible md:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x snap-proximity touch-pan-x cursor-grab active:cursor-grabbing select-none"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+            onMouseDown={(event) => startMouseDrag(event, topRestaurantsScrollRef, topDragStateRef)}
+            onMouseMove={(event) => moveMouseDrag(event, topRestaurantsScrollRef, topDragStateRef)}
+            onMouseUp={() => endMouseDrag(topDragStateRef)}
+            onMouseLeave={() => endMouseDrag(topDragStateRef)}
+            onClickCapture={(event) => suppressClickAfterDrag(event, topDragStateRef)}
+            onDragStart={(event) => event.preventDefault()}
+          >
             {[
               {
                 name: "Pizza 4P's Lê Thánh Tôn",
@@ -260,10 +344,10 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
                 transition={{ delay: idx * 0.05 }}
                 whileHover={{ y: -8 }}
                 onClick={onStartJourney}
-                className="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer border border-orange-200/50 dark:border-orange-800/30"
+                className="w-[82vw] max-w-sm md:w-auto md:max-w-none flex-shrink-0 snap-start bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer border border-orange-200/50 dark:border-orange-800/30"
               >
                 <div className="h-40 overflow-hidden">
-                  <img src={r.image} alt={r.name} className="w-full h-full object-cover" />
+                  <img src={r.image} alt={r.name} draggable={false} className="w-full h-full object-cover" />
                 </div>
                 <div className="p-4">
                   <h3 className="font-bold text-neutral-800 dark:text-neutral-100 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -300,10 +384,28 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
         </div>
 
         <div
-          ref={scrollContainerRef}
-          className="flex gap-6 overflow-x-hidden px-8"
-          style={{ scrollBehavior: 'auto' }}
+          ref={reviewScrollRef}
+          className="overflow-x-auto overscroll-x-contain px-8 pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x cursor-grab active:cursor-grabbing select-none"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+          onMouseDown={(event) => startMouseDrag(event, reviewScrollRef, reviewDragStateRef)}
+          onMouseMove={(event) => moveMouseDrag(event, reviewScrollRef, reviewDragStateRef)}
+          onMouseUp={() => endMouseDrag(reviewDragStateRef)}
+          onMouseLeave={() => {
+            endMouseDrag(reviewDragStateRef);
+          }}
+          onClickCapture={(event) => suppressClickAfterDrag(event, reviewDragStateRef)}
+          onDragStart={(event) => event.preventDefault()}
+          onTouchStart={() => {
+            isReviewAutoPausedRef.current = true;
+          }}
+          onTouchEnd={() => {
+            isReviewAutoPausedRef.current = false;
+          }}
+          onTouchCancel={() => {
+            isReviewAutoPausedRef.current = false;
+          }}
         >
+          <div className="flex gap-6 w-max">
           {[...Array(2)].map((_, setIndex) => (
             <div key={setIndex} className="flex gap-6 flex-shrink-0">
               {[
@@ -356,7 +458,7 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: item * 0.05 }}
-                  className="flex-shrink-0 w-96 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 rounded-2xl p-6 shadow-lg border border-orange-200/50 dark:border-orange-800/30"
+                  className="w-[82vw] max-w-md md:w-96 flex-shrink-0 snap-start bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 rounded-2xl p-6 shadow-lg border border-orange-200/50 dark:border-orange-800/30"
                 >
                   <div className="flex items-center gap-1 text-amber-500 mb-4">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -367,7 +469,7 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
                     "{review.text}"
                   </p>
                   <div className="flex items-center gap-3">
-                    <img src={review.avatar} alt={review.name} className="w-12 h-12 rounded-full object-cover" />
+                    <img src={review.avatar} alt={review.name} draggable={false} className="w-12 h-12 rounded-full object-cover" />
                     <div>
                       <p className="font-semibold text-neutral-800 dark:text-neutral-100" style={{ fontFamily: 'Inter, sans-serif' }}>
                         {review.name}
@@ -381,6 +483,7 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
               ))}
             </div>
           ))}
+          </div>
         </div>
       </section>
 

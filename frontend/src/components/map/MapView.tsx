@@ -95,38 +95,6 @@ export default function MapView({
 
   const userLocation = manualLocation ?? gpsLocation;
 
-  const handleConfirmPickedLocation = useCallback(() => {
-    const map = mapLeafletRef.current;
-    if (!map) return;
-    const size = map.getSize();
-    const selectedPoint: [number, number] = [
-      size.x / 2,
-      size.y / 2 + PICK_LOCATION_OFFSET_PX,
-    ];
-    const c = map.containerPointToLatLng(selectedPoint);
-    setManualLocation({ lat: c.lat, lng: c.lng });
-    setIsSettingLocation(false);
-  }, []);
-
-  const handleZoomIn = useCallback(() => {
-    const map = mapLeafletRef.current;
-    if (!map) return;
-    map.zoomIn();
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    const map = mapLeafletRef.current;
-    if (!map) return;
-    map.zoomOut();
-  }, []);
-
-  const handleBackToCurrentLocation = useCallback(() => {
-    const targetLocation = gpsLocation ?? userLocation;
-    setManualLocation(null);
-    setIsSettingLocation(false);
-    mapLeafletRef.current?.setView([targetLocation.lat, targetLocation.lng], 14);
-  }, [gpsLocation, userLocation]);
-
   // Data states
   const [conceptsList, setConceptsList] = useState<Tag[]>([]);
   const [purposesList, setPurposesList] = useState<Tag[]>([]);
@@ -157,6 +125,176 @@ export default function MapView({
     clearMapState,
   } = useMapStore();
   const [odysseusMarkers, setOdysseusMarkers] = useState<GeoJSONFeature[]>([]);
+
+  const refreshMapMarkersForLocation = useCallback(
+    async (nextLocation: UserLocation) => {
+      const applyMarkers = (nextMarkers: GeoJSONFeature[]) => {
+        if (isMapLocked && restorableMapMarkers) {
+          setRestorableMapMarkers(nextMarkers);
+          return;
+        }
+        setMapMarkers(nextMarkers);
+      };
+
+      const queryText = searchQuery.trim();
+      const hasSearchContext =
+        queryText.length > 0 ||
+        selectedConcepts.length > 0 ||
+        selectedPurposes.length > 0 ||
+        selectedAmenities.length > 0 ||
+        selectedBudgetRanges.length > 0 ||
+        searchResults.length > 0;
+
+      if (hasSearchContext) {
+        const response = await searchRestaurants({
+          query: queryText || undefined,
+          location: {
+            lat: nextLocation.lat,
+            lng: nextLocation.lng,
+          },
+          radius_km: radius,
+          concept_ids: selectedConcepts.length > 0 ? selectedConcepts : undefined,
+          purpose_ids: selectedPurposes.length > 0 ? selectedPurposes : undefined,
+          amenity_ids:
+            selectedAmenities.length > 0 ? selectedAmenities : undefined,
+          budget_range_ids:
+            selectedBudgetRanges.length > 0 ? selectedBudgetRanges : undefined,
+          limit: numberOfPlaces,
+          offset: 0,
+        });
+
+        setSearchResults(response.items);
+
+        if (response.items.length === 0) {
+          applyMarkers([]);
+          return;
+        }
+
+        const restaurantIds = response.items.map((item) => item.id);
+        const markers = await getMapMarkers({
+          restaurant_ids: restaurantIds,
+          user_lat: nextLocation.lat,
+          user_lng: nextLocation.lng,
+        });
+
+        const distanceById = new Map(
+          response.items.map((item) => [item.id, item.distance_km ?? null]),
+        );
+        const nextMarkers = [...markers.features];
+
+        nextMarkers.forEach((feature) => {
+          const searchDistance = distanceById.get(feature.properties.id);
+          if (feature.properties.distance == null && searchDistance != null) {
+            feature.properties.distance = searchDistance;
+          }
+          if (feature.properties.distance_km == null && searchDistance != null) {
+            feature.properties.distance_km = searchDistance;
+          }
+        });
+
+        applyMarkers(nextMarkers);
+        return;
+      }
+
+      const sourceMarkers =
+        isMapLocked && restorableMapMarkers ? restorableMapMarkers : mapMarkers;
+
+      if (sourceMarkers.length === 0) return;
+
+      const restaurantIds = Array.from(
+        new Set(
+          sourceMarkers
+            .filter((feature) => !feature.properties.is_ai_suggestion)
+            .map((feature) => feature.properties.id),
+        ),
+      );
+
+      if (restaurantIds.length === 0) return;
+
+      try {
+        const markers = await getMapMarkers({
+          restaurant_ids: restaurantIds,
+          user_lat: nextLocation.lat,
+          user_lng: nextLocation.lng,
+        });
+
+        const distanceById = new Map(
+          searchResults.map((item) => [item.id, item.distance_km ?? null]),
+        );
+        const nextMarkers = [...markers.features];
+
+        nextMarkers.forEach((feature) => {
+          const searchDistance = distanceById.get(feature.properties.id);
+          if (feature.properties.distance == null && searchDistance != null) {
+            feature.properties.distance = searchDistance;
+          }
+          if (feature.properties.distance_km == null && searchDistance != null) {
+            feature.properties.distance_km = searchDistance;
+          }
+        });
+
+        const fetchedIds = new Set(nextMarkers.map((feature) => feature.properties.id));
+        sourceMarkers.forEach((feature) => {
+          if (!fetchedIds.has(feature.properties.id)) {
+            nextMarkers.unshift(feature);
+          }
+        });
+
+        applyMarkers(nextMarkers);
+      } catch (err) {
+        console.error("[DEBUG] Failed to refresh map markers after location update:", err);
+      }
+    },
+    [
+      isMapLocked,
+      mapMarkers,
+      numberOfPlaces,
+      radius,
+      restorableMapMarkers,
+      searchQuery,
+      searchResults,
+      selectedAmenities,
+      selectedBudgetRanges,
+      selectedConcepts,
+      selectedPurposes,
+      setMapMarkers,
+      setSearchResults,
+    ],
+  );
+
+  const handleConfirmPickedLocation = useCallback(() => {
+    const map = mapLeafletRef.current;
+    if (!map) return;
+    const size = map.getSize();
+    const selectedPoint: [number, number] = [
+      size.x / 2,
+      size.y / 2 + PICK_LOCATION_OFFSET_PX,
+    ];
+    const c = map.containerPointToLatLng(selectedPoint);
+    const nextLocation = { lat: c.lat, lng: c.lng };
+    setManualLocation(nextLocation);
+    setIsSettingLocation(false);
+    void refreshMapMarkersForLocation(nextLocation);
+  }, [refreshMapMarkersForLocation]);
+
+  const handleZoomIn = useCallback(() => {
+    const map = mapLeafletRef.current;
+    if (!map) return;
+    map.zoomIn();
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    const map = mapLeafletRef.current;
+    if (!map) return;
+    map.zoomOut();
+  }, []);
+
+  const handleBackToCurrentLocation = useCallback(() => {
+    setIsSettingLocation(false);
+    const targetLocation = userLocation;
+    mapLeafletRef.current?.setView([targetLocation.lat, targetLocation.lng], 14);
+    void refreshMapMarkersForLocation(targetLocation);
+  }, [refreshMapMarkersForLocation, userLocation]);
 
   const markersForMap = useMemo(
     () => (isMapLocked ? [] : [...mapMarkers, ...odysseusMarkers]),
@@ -242,6 +380,7 @@ export default function MapView({
   >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isLeavingMap, setIsLeavingMap] = useState(false);
   // Keep SSR and first client render consistent, then sync from localStorage on mount.
   const [useMockData, setUseMockData] = useState(true);
   const [mockSwitchMessage, setMockSwitchMessage] = useState<string | null>(
@@ -616,6 +755,13 @@ export default function MapView({
     [],
   );
 
+  const handleBackHomeClick = useCallback(() => {
+    // Suppress transient overlays while route transition is happening.
+    setIsLeavingMap(true);
+    setShowEmptyMessage(false);
+    onBackHome();
+  }, [onBackHome]);
+
   return (
     <div className="relative w-full h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-950">
       {/* Top-Left: Navigation Control Group (Home + Refresh) */}
@@ -627,11 +773,12 @@ export default function MapView({
       >
         {/* Back home button */}
         <motion.button
-          onClick={onBackHome}
+          onClick={handleBackHomeClick}
           className="p-2.5 rounded-full hover:bg-neutral-50 dark:hover:bg-neutral-800/90 transition-all"
           title={t("backHome")}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
+          disabled={isLeavingMap}
         >
           <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
         </motion.button>
@@ -1056,7 +1203,7 @@ export default function MapView({
       )}
 
       {/* Empty results message */}
-      {!isLoading && searchResults.length === 0 && mapMarkers.length === 0 && !showFilters && !error && showEmptyMessage && hasSearched && (
+      {!isLeavingMap && !isLoading && searchResults.length === 0 && mapMarkers.length === 0 && !showFilters && !error && showEmptyMessage && hasSearched && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}

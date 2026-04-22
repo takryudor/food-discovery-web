@@ -27,8 +27,45 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
   const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
+  const latestNewsScrollRef = useRef<HTMLDivElement>(null);
+  const latestNewsDragStateRef = useRef({ isDragging: false, startX: 0, scrollLeft: 0, moved: false });
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [visibleArticles, setVisibleArticles] = useState(6);
+
+  const startMouseDrag = (event: React.MouseEvent<HTMLDivElement>) => {
+    const container = latestNewsScrollRef.current;
+    if (!container) return;
+
+    latestNewsDragStateRef.current.isDragging = true;
+    latestNewsDragStateRef.current.startX = event.pageX - container.offsetLeft;
+    latestNewsDragStateRef.current.scrollLeft = container.scrollLeft;
+    latestNewsDragStateRef.current.moved = false;
+  };
+
+  const moveMouseDrag = (event: React.MouseEvent<HTMLDivElement>) => {
+    const container = latestNewsScrollRef.current;
+    if (!container || !latestNewsDragStateRef.current.isDragging) return;
+
+    event.preventDefault();
+    const x = event.pageX - container.offsetLeft;
+    const walk = (x - latestNewsDragStateRef.current.startX) * 1.15;
+    if (Math.abs(walk) > 4) {
+      latestNewsDragStateRef.current.moved = true;
+    }
+    container.scrollLeft = latestNewsDragStateRef.current.scrollLeft - walk;
+  };
+
+  const endMouseDrag = () => {
+    latestNewsDragStateRef.current.isDragging = false;
+  };
+
+  const suppressClickAfterDrag = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (latestNewsDragStateRef.current.moved) {
+      event.preventDefault();
+      event.stopPropagation();
+      latestNewsDragStateRef.current.moved = false;
+    }
+  };
 
   const { scrollY } = useScroll({ container: containerRef });
   const heroY = useTransform(scrollY, [0, 400], [0, 150]);
@@ -200,8 +237,17 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
           {t('latestFoodNews')}
         </motion.h2>
 
-        <div className="overflow-x-auto pb-4 -mx-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-          <div className="flex gap-5 px-2 w-max">
+        <div
+          ref={latestNewsScrollRef}
+          className="overflow-x-auto overscroll-x-contain scroll-smooth pb-4 -mx-2 px-2 scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x snap-proximity touch-pan-x cursor-grab active:cursor-grabbing"
+          style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+          onMouseDown={startMouseDrag}
+          onMouseMove={moveMouseDrag}
+          onMouseUp={endMouseDrag}
+          onMouseLeave={endMouseDrag}
+          onClickCapture={suppressClickAfterDrag}
+        >
+          <div className="flex gap-5 w-max">
             {latestNews.map((news, index) => (
               <motion.div
                 key={news.id}
@@ -211,9 +257,9 @@ export default function ExplorePage({ onBackHome, theme }: ExplorePageProps) {
                 transition={{ delay: index * 0.08 }}
                 whileHover={{ y: -6, scale: 1.02 }}
                 onClick={() => setSelectedArticle({ ...news, description: t('exploreArticleDesc'), category: t('latestFoodNews'), readTime: '4 min' })}
-                className="w-64 flex-shrink-0 bg-white dark:bg-neutral-900 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
+                className="w-[82vw] max-w-64 flex-shrink-0 snap-start bg-white dark:bg-neutral-900 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer border border-neutral-200 dark:border-neutral-800"
               >
-                <div className="h-36 overflow-hidden">
+                <div className="relative h-36 overflow-hidden">
                   <Image
                     src={news.image}
                     alt={news.title}
