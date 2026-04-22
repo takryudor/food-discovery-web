@@ -38,11 +38,13 @@ class GeoFacade:
 
         restaurants_data = []
         for r in restaurants: 
+            restaurant_lng = r.longitude
+
             # Cơ chế dung lỗi: Gán giá trị mặc định nếu DB thiếu
             item = {
                 "id": r.id, 
                 "lat": r.latitude or 0.0, 
-                "lng": r.longtitude or 0.0, 
+                "lng": restaurant_lng or 0.0, 
                 "name": r.name or "Unknown", 
                 "avg_price": r.price_range or "N/A", 
                 "rating": r.rating or 0.0, 
@@ -52,10 +54,10 @@ class GeoFacade:
             }
 
                 # Nếu có tọa độ user, tính toán nhanh ETA/Distance sơ bộ 
-            if user_lat is not None and user_lng is not None and r.latitude and r.longtitude: 
+            if user_lat is not None and user_lng is not None and r.latitude is not None and restaurant_lng is not None:
                 # Gọi Navcalculator để tính toán logic thực tế
                 nav_info = await self.nav_calculator.estimate_simple_nav(
-                    user_lat, user_lng, r.latitude, r.longtitude
+                    user_lat, user_lng, r.latitude, restaurant_lng
                 )
                 item["distance"] = nav_info.get("distance")
                 item["eta"] = nav_info.get("duration")
@@ -85,8 +87,10 @@ class GeoFacade:
         if not restaurant:
             raise HTTPException(status_code=404, detail="RESTAURANT_NOT_FOUND")
 
+        restaurant_lng = restaurant.longitude
+
         # Kiểm tra tọa độ trong DB 
-        if restaurant.latitude is None or restaurant.longtitude is None: 
+        if restaurant.latitude is None or restaurant_lng is None: 
             raise HTTPException(status_code=422, detail="RESTAURANT_LOCATION_MISSING")
 
         # Gọi service tính toán đường đi chi tiết (ETA thực tế dựa trên bản đồ)
@@ -94,7 +98,7 @@ class GeoFacade:
             origin_lat=user_lat,
             origin_lng=user_lng,
             dest_lat=restaurant.latitude,
-            dest_lng=restaurant.longtitude,
+            dest_lng=restaurant_lng,
             mode=mode,
         )
 

@@ -73,24 +73,75 @@ function withDefaultHeaders(headers?: HeadersInit): Headers {
 
 export async function apiFetch<T>(options: ApiFetchOptions): Promise<T> {
   const { path, query, body, headers, ...init } = options;
-  const response = await fetch(withQuery(path, query), {
-    ...init,
-    headers: withDefaultHeaders(headers),
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(withQuery(path, query), {
+      ...init,
+      headers: withDefaultHeaders(headers),
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (error) {
+    const networkMessage =
+      error instanceof Error && error.message
+        ? error.message
+        : "Khong the ket noi backend.";
+
+    const apiError: ApiError = {
+      message: `Khong the ket noi backend: ${networkMessage}`,
+    };
+    throw apiError;
+  }
+
+  const parsedBody = await parseResponseBody(response);
 
   if (!response.ok) {
-    await handleApiError(response);
+    await handleApiError(response, parsedBody);
   }
 
   if (response.status === 204) {
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  if (typeof parsedBody === "string") {
+    const apiError: ApiError = {
+      message: `Phan hoi khong hop le tu backend (${response.status}).`,
+      status: response.status,
+    };
+    throw apiError;
+  }
+
+  if (parsedBody === undefined || parsedBody === null) {
+    const apiError: ApiError = {
+      message: `Phan hoi rong tu backend (${response.status}).`,
+      status: response.status,
+    };
+    throw apiError;
+  }
+
+  return parsedBody as T;
 }
 
-export async function handleApiError(response: Response): Promise<never> {
+async function parseResponseBody(response: Response): Promise<unknown> {
+  if (response.status === 204) {
+    return undefined;
+  }
+
+  const raw = await response.text();
+  if (!raw) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
+export async function handleApiError(
+  response: Response,
+  parsedBody?: unknown,
+): Promise<never> {
   let errorMessage = `Loi ${response.status}: Khong the thuc hien yeu cau`;
 
   if (response.status === 404) {
@@ -101,13 +152,32 @@ export async function handleApiError(response: Response): Promise<never> {
     errorMessage = "Loi server. Vui long thu lai sau.";
   }
 
-  try {
-    const errorData = await response.json();
-    if (errorData.detail) {
-      errorMessage = errorData.detail;
+  if (parsedBody && typeof parsedBody === "object") {
+    const errorData = parsedBody as { detail?: unknown; message?: unknown };
+    if (errorData.detail !== undefined && errorData.detail !== null) {
+      if (typeof errorData.detail === "string") {
+        errorMessage = errorData.detail;
+      } else if (Array.isArray(errorData.detail)) {
+        errorMessage = errorData.detail
+          .map((item) => {
+            if (typeof item === "string") return item;
+            if (item && typeof item === "object") {
+              const msg = (item as { msg?: unknown }).msg;
+              return typeof msg === "string" ? msg : JSON.stringify(item);
+            }
+            return String(item);
+          })
+          .join("; ");
+      } else if (typeof errorData.detail === "object") {
+        errorMessage = JSON.stringify(errorData.detail);
+      } else {
+        errorMessage = String(errorData.detail);
+      }
+    } else if (typeof errorData.message === "string" && errorData.message) {
+      errorMessage = errorData.message;
     }
-  } catch {
-    // Ignore JSON parse error.
+  } else if (typeof parsedBody === "string" && parsedBody.trim().length > 0) {
+    errorMessage = parsedBody;
   }
 
   const error: ApiError = {

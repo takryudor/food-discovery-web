@@ -355,9 +355,22 @@ export default function MapView({
         setMapMarkers([]);
       }
     } catch (err) {
+      const debugError =
+        err instanceof Error
+          ? {
+              name: err.name,
+              message: err.message,
+              stack: err.stack,
+            }
+          : err;
+
       const errorMessage =
-        (err as Error).message || "Có lỗi xảy ra khi tìm kiếm";
-      console.error("[DEBUG] Search error:", err);
+        typeof err === "string"
+          ? err
+          : err && typeof err === "object" && "message" in err
+            ? String((err as { message: unknown }).message)
+            : "Có lỗi xảy ra khi tìm kiếm";
+      console.error("[DEBUG] Search error:", debugError);
       setError(errorMessage);
     } finally {
       setIsLoading(false);
