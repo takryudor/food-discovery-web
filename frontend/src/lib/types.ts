@@ -144,6 +144,15 @@ export interface FulltextSearchResponse {
   items: RestaurantSuggestion[];
 }
 
+// Types for Route/ETA API
+
+export interface RouteResponse {
+  distance_km: number;
+  eta_minutes: number;
+  maps_link?: string;
+  mode: string;
+}
+
 // User location types
 
 export interface UserLocation {

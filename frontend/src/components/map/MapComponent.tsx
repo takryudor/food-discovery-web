@@ -13,10 +13,17 @@ import {
   Phone,
   Clock,
   X,
+  Car,
+  Footprints,
+  Bike,
+  Bus,
+  Navigation,
+  ExternalLink,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
-import { UserLocation, GeoJSONFeature, RestaurantDetail } from "@/lib/types";
+import { UserLocation, GeoJSONFeature, RestaurantDetail, RouteResponse } from "@/lib/types";
 import { getRestaurantDetail } from "@/lib/api/restaurant";
+import { getRoute } from "@/lib/api/geo";
 import { useLanguage } from "@/components/providers/LanguageContext";
 
 // Fix Leaflet icon issue in Next.js
@@ -278,10 +285,17 @@ export default function MapComponent({
                         feature.geometry.coordinates[0],
                       );
 
+                    const eta = feature.properties.eta;
                     return (
                       <div className="mb-2 grid grid-cols-[auto_1fr] gap-x-2 text-sm text-gray-700">
                         <span className="font-medium">{t("distance")}:</span>
                         <span>{rawDistance.toFixed(2)} km</span>
+                        {eta != null && (
+                          <>
+                            <span className="font-medium">{t("eta")}:</span>
+                            <span>{eta} {t("minutes")}</span>
+                          </>
+                        )}
                       </div>
                     );
                   })()}
@@ -346,6 +360,7 @@ export default function MapComponent({
         {selectedRestaurant && (
           <RestaurantDetailPanel
             restaurant={selectedRestaurant}
+            userLocation={userLocation}
             onClose={() => {
               setSelectedRestaurant(null);
               onViewOtherRestaurants();
@@ -362,18 +377,42 @@ export default function MapComponent({
 }
 
 // Restaurant Detail Panel Component
+type TransportMode = "driving" | "walking" | "bicycling" | "transit";
+
 interface RestaurantDetailPanelProps {
   restaurant: RestaurantDetail;
+  userLocation?: UserLocation;
   onClose: () => void;
   onConfirm: () => void;
 }
 
 function RestaurantDetailPanel({
   restaurant,
+  userLocation,
   onClose,
   onConfirm,
 }: RestaurantDetailPanelProps) {
   const { t } = useLanguage();
+  const [selectedMode, setSelectedMode] = useState<TransportMode>("driving");
+  const [routeInfo, setRouteInfo] = useState<RouteResponse | null>(null);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+
+  useEffect(() => {
+    if (!userLocation || !restaurant.id) return;
+    setIsLoadingRoute(true);
+    setRouteInfo(null);
+    getRoute(restaurant.id, userLocation.lat, userLocation.lng, selectedMode)
+      .then(setRouteInfo)
+      .catch(() => {})
+      .finally(() => setIsLoadingRoute(false));
+  }, [restaurant.id, userLocation, selectedMode]);
+
+  const transportModes: { mode: TransportMode; icon: React.ReactNode }[] = [
+    { mode: "driving", icon: <Car className="w-4 h-4" /> },
+    { mode: "walking", icon: <Footprints className="w-4 h-4" /> },
+    { mode: "bicycling", icon: <Bike className="w-4 h-4" /> },
+    { mode: "transit", icon: <Bus className="w-4 h-4" /> },
+  ];
   return (
     <>
       {/* Backdrop */}
@@ -474,6 +513,56 @@ function RestaurantDetailPanel({
                 </p>
               </div>
             </div>
+
+            {/* ETA & Routing */}
+            {userLocation && (
+              <div className="bg-blue-50 rounded-xl p-4 space-y-3">
+                {/* Transport mode selector */}
+                <div className="grid grid-cols-4 gap-2">
+                  {transportModes.map(({ mode, icon }) => (
+                    <button
+                      key={mode}
+                      onClick={() => setSelectedMode(mode)}
+                      className={`flex flex-col items-center gap-1 py-2 rounded-xl text-xs font-medium transition-colors ${
+                        selectedMode === mode
+                          ? "bg-blue-500 text-white shadow-sm"
+                          : "bg-white text-gray-600 hover:bg-blue-100"
+                      }`}
+                    >
+                      {icon}
+                      <span>{t(mode)}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* ETA display */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="w-4 h-4 text-blue-600 shrink-0" />
+                    {isLoadingRoute ? (
+                      <span className="text-sm text-gray-500">{t("etaLoading")}</span>
+                    ) : routeInfo ? (
+                      <span className="text-sm font-semibold text-blue-700">
+                        {routeInfo.distance_km.toFixed(1)} km · {routeInfo.eta_minutes} {t("minutes")}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-400">{t("eta")}</span>
+                    )}
+                  </div>
+                  {routeInfo?.maps_link && (
+                    <a
+                      href={routeInfo.maps_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {t("openInGoogleMaps")}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Phone */}
             {restaurant.phone && (

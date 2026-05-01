@@ -1,4 +1,4 @@
-import { ApiError, GeoJSONFeatureCollection, MapMarkerRequest } from "@/lib/types";
+import { ApiError, GeoJSONFeatureCollection, MapMarkerRequest, RouteResponse } from "@/lib/types";
 import { getMarkersByIds } from "@/lib/mockData";
 import {
   apiFetch,
@@ -37,4 +37,32 @@ export async function getMapMarkers(
     };
     throw networkError;
   }
+}
+
+export async function getRoute(
+  restaurantId: number,
+  userLat: number,
+  userLng: number,
+  mode: string = "driving",
+): Promise<RouteResponse> {
+  if (isMockDataEnabled()) {
+    await new Promise((r) => setTimeout(r, 300));
+    const etaMap: Record<string, number> = {
+      driving: 8,
+      walking: 30,
+      bicycling: 12,
+      transit: 20,
+    };
+    return {
+      distance_km: 2.5,
+      eta_minutes: etaMap[mode] ?? 8,
+      maps_link: `https://www.google.com/maps/dir/?api=1&destination=${userLat},${userLng}&travelmode=${mode}`,
+      mode,
+    };
+  }
+
+  return apiFetch<RouteResponse>({
+    path: `/geo/get-route/${restaurantId}?user_lat=${userLat}&user_lng=${userLng}&mode=${mode}`,
+    method: "GET",
+  });
 }
