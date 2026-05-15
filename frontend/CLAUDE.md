@@ -1,258 +1,246 @@
-@AGENTS.md
+# CLAUDE.md — FoOdyssey Frontend
 
-# CLAUDE.md — FoOdyssey
-
-> AI coding guide for Claude Code and GitHub Copilot.
-> Read this before writing any code in this repository.
+> AI coding guide for Claude Code, GitHub Copilot, Cursor, and other coding agents working in **this repo** (the FoOdyssey frontend). Read this and `AGENTS.md` before writing any code. For visual / design questions, also read `DESIGN_LANGUAGE.md`.
 
 ---
 
-## Project Overview
+## What this repo is
 
-**FoOdyssey** is a food discovery web app for Vietnam. Users search for restaurants by location, budget, dining concept, purpose, and amenities. Results are ranked by a weighted `match_score`. An AI chatbox (Gemini) supports natural-language queries.
+The **Next.js 14 (App Router) frontend** for FoOdyssey — a food-discovery web app that helps users in Vietnam find restaurants by location, budget, dining concept, purpose, and amenities. Results are ranked by a backend-computed `match_score` and surfaced on an interactive Leaflet map. A Gemini-powered chatbox ("Odysseus AI") accepts natural-language queries.
 
-- **Architecture:** Modular Monolith (single process, clearly separated internal modules)
-- **Backend:** Python 3.11+ / FastAPI
-- **Frontend:** Next.js 14+ (App Router) / TypeScript / Tailwind CSS / Zustand
-- **DB:** PostgreSQL 16+ via SQLAlchemy ORM + Alembic
-- **Cache / OTP:** Redis 7+
-- **AI:** Google Gemini API
-- **Maps:** Google Maps Distance Matrix API + Leaflet/Mapbox
+This frontend is one half of a Modular Monolith. The backend (FastAPI / Python) lives in a sibling `backend/` repo and exposes a REST API on `http://localhost:8000`. **Do not implement business logic here that belongs to the backend** — the frontend renders, the backend ranks.
+
+**Current milestone:** MVP Phase 3–5 — Discovery core, map view, AI chatbox.
 
 ---
 
-## Current Phase: MVP (Phase 3–5)
+## Stack
 
-The team is actively building the **Discovery core**. Focus only on what is marked **MVP** or **PRODUCTION** in the roadmap. Do **not** implement `[EXTEND]`-tagged features unless explicitly asked.
-
-| Phase                | Status    | Scope                                        |
-| -------------------- | --------- | -------------------------------------------- |
-| 1 — Foundation       | ✅ Done   | docker-compose, core/, Alembic base          |
-| 2 — Data Layer       | ✅ Done   | Restaurant model, seed data                  |
-| **3 — MVP Search**   | 🔨 Active | `discovery` module, `POST /search`           |
-| **4 — Map & Detail** | 🔨 Active | map markers, restaurant detail, autocomplete |
-| **5 — AI Chatbox**   | 🔨 Active | Gemini integration, `POST /ai/chatbox`       |
-| 6 — Auth & Profile   | 🔜 Next   | `/auth/*`, profile module                    |
-| 7 — Ratings & Geo    | 🔜 Next   | ratings, ETA routing                         |
-| 8 — Extend           | ⏳ Later  | AI preferences, OCR, 2FA                     |
+| Concern       | Choice                                                                   |
+| ------------- | ------------------------------------------------------------------------ |
+| Framework     | Next.js 14+ (App Router, RSC where possible)                             |
+| Language      | TypeScript (no `any`)                                                    |
+| Styling       | Tailwind CSS v4 + CSS variables in `src/app/globals.css`                 |
+| Fonts         | Playfair Display (headings) + Inter (body) via Google Fonts import       |
+| State         | Zustand (`src/store/*`)                                                  |
+| Animation     | `motion/react` (Framer Motion)                                           |
+| Icons         | `lucide-react`                                                           |
+| Map           | Leaflet (loaded dynamically, client-only)                                |
+| Forms         | Hand-rolled controlled inputs (react-hook-form installed, not wired)     |
+| HTTP          | Thin wrappers in `src/lib/api/*` over `fetch`                            |
+| Component kit | shadcn/ui under `src/components/ui/` (use these instead of hand-rolling) |
 
 ---
 
 ## Repository Layout
 
 ```
-foodyssey/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── router.py            # Aggregates all module routers
-│   │   ├── core/                # Shared infrastructure (DB, JWT, config)
-│   │   ├── api/v1/              # Layer 1: Route handlers only
-│   │   └── modules/             # Layer 2–4: Business logic
-│   │       ├── discovery/       # ← PRIMARY focus right now
-│   │       ├── auth/
-│   │       ├── profile/
-│   │       ├── ratings/
-│   │       ├── geo/
-│   │       ├── ai/
-│   │       ├── vision/          # [EXTEND] — do not touch yet
-│   │       └── feedback/
-│   └── tests/
-│       ├── unit/
-│       └── integration/
-└── frontend/
-    └── src/
-        ├── app/                 # Next.js App Router pages
-        ├── components/          # Shared UI components
-        ├── store/               # Zustand state
-        ├── services/            # API call wrappers
-        └── hooks/               # Custom React hooks
+frontend/
+├── public/                           # food-marker SVGs, favicons
+├── src/
+│   ├── app/                          # App Router pages
+│   │   ├── layout.tsx                # Root layout; loads fonts, Providers
+│   │   ├── providers.tsx             # AuthContext + LanguageContext wrappers
+│   │   ├── page.tsx                  # /     → HomePage
+│   │   ├── _components/HomePage.tsx
+│   │   ├── explore/
+│   │   │   ├── page.tsx              # /explore → ExplorePage
+│   │   │   └── _components/ExplorePage.tsx
+│   │   ├── map/page.tsx              # /map → MapView
+│   │   └── globals.css               # Tailwind + design tokens + Leaflet polish
+│   ├── components/
+│   │   ├── auth/                     # AuthContext, Login/Register/UserMenu
+│   │   ├── common/                   # SettingsDropdown, etc.
+│   │   ├── feedback/                 # CompletionDialog
+│   │   ├── map/                      # MapView (chrome) + MapComponent (Leaflet)
+│   │   ├── providers/                # LanguageContext (vi / en)
+│   │   ├── restaurant/components/    # RestaurantDetail, OdysseusAI
+│   │   └── ui/                       # shadcn/ui primitives — USE THESE
+│   ├── hooks/                        # useUserLocation, useMobile, etc.
+│   ├── lib/
+│   │   ├── api/                      # client, filters, geo, search wrappers
+│   │   └── types.ts                  # shared types (Tag, GeoJSONFeature, ...)
+│   └── store/                        # Zustand stores (see below)
+├── DESIGN_LANGUAGE.md                # Visual system survey
+├── UI_SUGGESTIONS.md                 # Prioritized UI improvements
+├── AGENTS.md                         # Agent task boundaries (read this too)
+└── CLAUDE.md                         # ← this file
 ```
 
 ---
 
-## The Four-Layer Architecture
+## The three flows that matter most
 
-Every backend module **must** follow this exact layer order:
-
-```
-api/v1/<module>_routes.py       ← Receives HTTP request, validates via schema, calls facade
-    ↓
-modules/<module>/<module>_facade.py   ← Orchestrates; ONLY entry point for other modules
-    ↓
-modules/<module>/services/*.py  ← All business logic lives here
-    ↓
-modules/<module>/models.py + schemas.py   ← SQLAlchemy models + Pydantic schemas
-```
-
-### The Facade Rule — Most Important Convention
-
-```python
-# ✅ CORRECT — call another module only through its Facade
-from app.modules.geo.geo_facade import geo_facade
-result = geo_facade.geocode("Quận 1, TP.HCM")
-
-# ❌ WRONG — never import directly into another module's service
-from app.modules.geo.services.coord_handler import get_coordinates
-```
-
-**Never bypass the Facade layer.** If module A needs data from module B, it calls `b_facade.<method>()`. This is the team's primary rule for avoiding merge conflicts and import cycles.
-
-### Cross-Module Dependency Map
+### 1. Discovery search flow
 
 ```
-discovery_facade  →  geo_facade.geocode()
-discovery_facade  →  profile_facade.rerank_with_preferences()   [PRODUCTION]
-discovery_facade  →  ai_facade.parse_chat_to_filters()           [EXTEND]
-ratings_facade    →  profile_facade.update_weights()             [EXTEND]
-feedback_facade   →  discovery_facade.execute_search()
-auth_facade       →  profile_facade.create_default_preferences()
+User toggles filter / types query
+        ↓
+useFilterStore action (toggleConcept, setRadius, ...)
+        ↓
+MapView reads store + calls searchRestaurants() in src/lib/api/search.ts
+        ↓
+Response → useSearchStore.setSearchResults()
+        ↓
+getMapMarkers() → useMapStore.setMapMarkers()
+        ↓
+MapComponent re-renders pins; result panel re-renders cards
 ```
+
+**Never** call `fetch()` from a component. Every network call goes through a wrapper in `src/lib/api/*`.
+
+### 2. Map interactions
+
+`src/components/map/MapView.tsx` owns the **chrome** (floating filter drawer, top-left Home+Refresh cluster, bottom-left location+AI cluster, zoom controls, callouts). `MapComponent.tsx` owns the **Leaflet instance** and is loaded with `dynamic(..., { ssr: false })` to dodge `window is not defined` during SSR.
+
+- Markers are GeoJSON features; the custom pin uses `public/food-marker.svg` (warm gradient teardrop).
+- "Set location" mode lets the user drop a pin instead of using GPS — managed by `manualLocation` state in `MapView`.
+- Zoom and pan are imperative via `mapLeafletRef.current`.
+
+### 3. Odysseus AI
+
+`src/components/restaurant/components/OdysseusAI.tsx` is a side-panel chat surface that calls `POST /ai/chatbox` and renders streamed Gemini responses as restaurant suggestions, which then become map markers (`odysseusMarkers` in `MapView`).
 
 ---
 
-## Core Business Logic
+## State: the four Zustand stores
 
-### match_score Formula
+Global state lives **exclusively** in `src/store/`. Never use `useState` for state that crosses component boundaries.
 
-```python
-match_score = (
-    0.30 * concept_score    # fraction of selected concepts matched
-  + 0.20 * purpose_score    # fraction of selected purposes matched
-  + 0.10 * amenity_score    # fraction of selected amenities matched
-  + 0.20 * distance_score   # = 1 - (distance_km / radius_km)
-  + 0.20 * rating_score     # = restaurant.rating / 5.0
-)
-# All component scores are normalised to [0, 1].
-# If the user selects no filters for a group, its weight is redistributed
-# proportionally across the other groups — do NOT hardcode weights.
-```
+| Store            | Owns                                                                                           |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| `useFilterStore` | `selectedConcepts/Purposes/Amenities/BudgetRanges`, `radius`, `numberOfPlaces`, toggle actions |
+| `useSearchStore` | `searchResults`, `setSearchResults`, `clearSearchResults`                                      |
+| `useMapStore`    | `mapMarkers`, `selectedMarkerId`, `clearMapState`                                              |
+| `useUIStore`     | `theme` (light/dark), `setTheme`                                                               |
+| `useAuthStore`   | (via `AuthContext`) `user`, `isAuthenticated`, `login/logout`                                  |
 
-### Filter Classification
+When clearing one screen's state to enter another, clear all relevant stores in order (see `app/page.tsx`'s `handleStartJourney`). Stale data leaking between screens is the #1 bug source.
 
-| Type             | Fields                              | Behaviour                                      |
-| ---------------- | ----------------------------------- | ---------------------------------------------- |
-| Hard constraints | `radius_km`, `budget_min/max`       | Discard restaurant immediately if unmet        |
-| Soft constraints | `concepts`, `purposes`, `amenities` | Contribute to `match_score`; never hard-reject |
-| Sort criteria    | `sort_by` enum                      | Applied last, after scoring                    |
+---
 
-### Valid `sort_by` values
+## API contract with the backend
 
-`recommended` (default) · `rating_desc` · `distance_asc` · `price_asc`
+Base URL is read from `process.env.NEXT_PUBLIC_API_BASE_URL`. Endpoints used in the MVP:
 
-### Standard Input Schema
+| Method | Path                           | Wrapper                                                   |
+| ------ | ------------------------------ | --------------------------------------------------------- |
+| POST   | `/search`                      | `searchRestaurants(...)` in `lib/api/search.ts`           |
+| GET    | `/restaurants/{id}`            | `getRestaurant(id)` in `lib/api/restaurants.ts`           |
+| GET    | `/filters/options`             | `getFiltersOptions()` in `lib/api/filters.ts`             |
+| POST   | `/map-markers`                 | `getMapMarkers(...)` in `lib/api/geo.ts`                  |
+| GET    | `/restaurants/search/fulltext` | `searchRestaurantsFulltext(query)` in `lib/api/search.ts` |
+| POST   | `/ai/chatbox`                  | (inside `OdysseusAI.tsx`)                                 |
 
-| Field            | Type      | Required | Notes                         |
-| ---------------- | --------- | -------- | ----------------------------- |
-| `location_query` | string    | ✅       | e.g. `"Quận 1, TP.HCM"`       |
-| `radius_km`      | int       | ✅       | Must be 3, 5, or 10           |
-| `budget_min`     | int       | ✅       | VND; must be < `budget_max`   |
-| `budget_max`     | int       | ✅       | VND                           |
-| `concepts`       | list[str] | ❌       | e.g. `["Cafe", "Nhà hàng"]`   |
-| `purposes`       | list[str] | ❌       | e.g. `["Hẹn hò", "Gia đình"]` |
-| `amenities`      | list[str] | ❌       | e.g. `["Wifi", "Máy lạnh"]`   |
-| `sort_by`        | str       | ❌       | Defaults to `recommended`     |
+**Mock-data toggle:** `lib/api/client.ts` exposes `getUseMockData()` / `setUseMockData(true)`. The map filter drawer surfaces it as a small "🟢 Mock" badge. When you add a new endpoint wrapper, mirror its mock branch so the toggle still works offline.
 
-### Standard Output Fields
+### Request / response shapes
 
-`id` · `name` · `address` · `distance_km` · `avg_price` · `rating` · `match_score` · `matched_tags`
+All API response types live in `src/lib/types.ts`. Do **not** redefine them in components. If you add a new field, add it to the type first.
+
+Key types: `Tag`, `GeoJSONFeature`, `RestaurantDetail`, `RestaurantSuggestion`, `UserLocation`, `SearchResponse`.
+
+---
+
+## Conventions
+
+### Styling
+
+- **Use Tailwind utility classes.** Inline `style={{}}` is acceptable only for dynamic values (gradients, computed positions) — see `DESIGN_LANGUAGE.md` for the canonical gradient strings.
+- **Headings** automatically get Playfair Display via `@layer base` in `globals.css`. Don't repeat `style={{ fontFamily: 'Playfair Display, serif' }}` on every `<h2>`.
+- **Dark mode** is first-class. Every surface gets both light and dark variants. Test both.
+- **Colors:** prefer the design tokens (`bg-primary`, `text-primary`, ...) defined via CSS variables. Hardcoded `#FF4B2B`-style hex is a smell — fix when you touch the file.
+
+### Components
+
+- **Use shadcn/ui primitives** in `src/components/ui/` (`Button`, `Dialog`, `Input`, `Select`, `Slider`, `Sheet`, ...). They are installed and styled. Hand-rolling another button is a regression.
+- **Modals** that already exist (LoginModal, RegisterModal, RestaurantDetail) are hand-rolled with Framer Motion + portal. New modals should use `Dialog` from shadcn/ui instead.
+- **Lazy-load heavy widgets** with `next/dynamic({ ssr: false })` — anything touching `window`, Leaflet, or large libraries.
+
+### Motion
+
+- Use `motion/react` (Framer Motion).
+- Common patterns: `whileHover={{ scale: 1.02, y: -2 }}`, `whileInView` with stagger via `transition={{ delay: i * 0.05 }}`, springy modal opens with `type: 'spring', damping: 25`.
+- Don't add new animation libraries.
+
+### Internationalization
+
+- All user-facing strings go through `t('key')` from `LanguageContext`.
+- Supported languages: Vietnamese (default) + English.
+- When you add a string, add the `vi` and `en` translations in the same PR. Hardcoded Vietnamese strings (like the literal `t('Để sau')` bug in `MapView`) are not acceptable.
+
+### TypeScript
+
+- **No `any`.** Define a type in `src/lib/types.ts` if one is missing.
+- API response types are the source of truth; component props derive from them, not the other way around.
 
 ---
 
 ## Commands
 
-### Run (Docker — recommended)
+### Dev (without Docker)
 
 ```bash
-# Production / demo
+npm install
+npm run dev          # → http://localhost:3000
+```
+
+### With Docker (recommended for full-stack)
+
+```bash
+# From the monorepo root:
 docker-compose up --build
-
-# Development with hot-reload
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Frontend → :3000, Backend → :8000, Swagger → :8000/docs
 ```
 
-Services:
-
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- Swagger UI: http://localhost:8000/docs
-
-### Database
+### Lint, type-check, build
 
 ```bash
-docker-compose exec backend alembic upgrade head
-docker-compose exec backend python -m app.scripts.seed_restaurants
-```
-
-### Run without Docker
-
-```bash
-# Backend
-cd backend && python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
-
-# Frontend
-cd frontend && npm install && npm run dev
+npm run lint
+npm run typecheck       # tsc --noEmit
+npm run build
 ```
 
 ### Tests
 
-```bash
-docker-compose exec backend pytest               # all tests
-docker-compose exec backend pytest tests/unit/   # unit only
-docker-compose exec backend pytest tests/integration/
+The frontend doesn't have a test runner wired yet. When you add one, use **Vitest + Testing Library** to match the project's lean preferences. Co-locate tests as `Component.test.tsx`.
+
+---
+
+## Environment
+
+`.env.local` (gitignored) — never commit. Only `.env.example` is committed.
+
+Required keys for the frontend:
+
+```
+NEXT_PUBLIC_API_BASE_URL          # e.g. http://localhost:8000
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY   # only used for the Distance Matrix in route ETA
+NEXT_PUBLIC_USE_MOCK_DATA         # 'true' for offline / FE-only development
 ```
 
----
-
-## Coding Conventions
-
-### Backend (Python / FastAPI)
-
-- Route handlers do **exactly three things**: receive JSON → validate via Pydantic schema → call facade. No logic in routes.
-- All cross-module Pydantic types must be defined in each module's own `schemas.py`. Never share model classes across modules directly.
-- Use Redis for all caching and all OTP tokens. Never store time-limited sensitive data in PostgreSQL.
-- Every DB model must inherit from `Base` in `core/database.py`.
-- Each PR introduces **at most one** Alembic migration file.
-- Commit order within a module: `models.py` → `schemas.py` → `services/` → `facade.py` → `routes.py`.
-
-### Frontend (Next.js / TypeScript)
-
-- State management via **Zustand** only; do not use `useState` for global/shared state.
-- API calls live in `src/services/`; components never call `fetch()` directly.
-- Use **Tailwind CSS** utility classes; avoid inline styles.
-- Map rendering: Leaflet/Mapbox via the `MapView` component in `components/map/`.
-
-### Environment
-
-- Never commit `.env`. Only `.env.example` is committed.
-- Required keys: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET_KEY`, `GEMINI_API_KEY`, `GOOGLE_MAPS_API_KEY`, `SMTP_*`.
+All `NEXT_PUBLIC_*` vars are inlined at build time and visible in the browser. **Never** put a secret (Gemini key, JWT secret, SMTP password) behind `NEXT_PUBLIC_*` — those belong to the backend only.
 
 ---
 
-## API Reference (MVP Endpoints)
+## What NOT to do
 
-Base URL: `http://localhost:8000`
-
-| Method | Path                           | Purpose                                           |
-| ------ | ------------------------------ | ------------------------------------------------- |
-| POST   | `/search`                      | Main discovery endpoint — filters + `match_score` |
-| GET    | `/restaurants/{id}`            | Restaurant detail                                 |
-| GET    | `/filters/options`             | Concepts / purposes / amenities list              |
-| POST   | `/map-markers`                 | GeoJSON markers for map view                      |
-| GET    | `/restaurants/search/fulltext` | Autocomplete                                      |
-| POST   | `/ai/chatbox`                  | Gemini chat → restaurant list                     |
-
-Full spec: **Swagger UI** at `/docs` or **Redoc** at `/redoc`.
+- **Don't** call `fetch()` directly from a component. Use a `lib/api/*` wrapper.
+- **Don't** use `useState` for state that's read by another component — promote it to a Zustand store.
+- **Don't** introduce a second map library, charts library, or animation library.
+- **Don't** hand-roll a primitive that exists in `src/components/ui/` — use it.
+- **Don't** put secrets behind `NEXT_PUBLIC_*`.
+- **Don't** implement `match_score` or filter ranking on the client. The backend computes it; we render `match_score` and `matched_tags` from the response.
+- **Don't** redefine an API response type inside a component file — extend `src/lib/types.ts`.
+- **Don't** add Vietnamese (or any) hardcoded copy. Everything goes through `t()`.
+- **Don't** scrollIntoView, ever — it breaks the embedded preview shell. Use `Element.scrollTo` or imperative scroll on a known ref.
 
 ---
 
-## What NOT to Do
+## Where to learn more
 
-- Do **not** implement anything tagged `[EXTEND]` (OCR, AI preference weights, 2FA, snapshot recognition) during the current MVP phase.
-- Do **not** import a service from module A directly into a service in module B.
-- Do **not** use machine learning models for `match_score` — the linear weighted formula above is intentional and sufficient for MVP.
-- Do **not** store OTP or session tokens in PostgreSQL; use Redis with TTL.
-- Do **not** commit `.env` with real API keys.
+- **Visual system + tokens**: `DESIGN_LANGUAGE.md`
+- **UI improvement backlog**: `UI_SUGGESTIONS.md`
+- **Agent task boundaries**: `AGENTS.md`
+- **Backend contract (read-only reference)**: the monorepo's root `CLAUDE.md`
+- **Live API docs**: `http://localhost:8000/docs` (Swagger) when backend is up
