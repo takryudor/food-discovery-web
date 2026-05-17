@@ -61,7 +61,7 @@ export async function getFiltersOptions(): Promise<FiltersOptionsResponse> {
 
     const networkError: ApiError = {
       message:
-        "Khong the ket noi den server. Vui long kiem tra backend va CORS.",
+        "Không thể kết nối đến server. Vui lòng kiểm tra backend và CORS.",
     };
     throw networkError;
   }
