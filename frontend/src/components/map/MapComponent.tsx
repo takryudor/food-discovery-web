@@ -20,14 +20,15 @@ import { UserLocation, GeoJSONFeature, RestaurantDetail } from "@/lib/types";
 import { getRestaurantDetail } from "@/lib/api/restaurant";
 import { useLanguage } from "@/components/providers/LanguageContext";
 import { createGoongGlLayer } from "@/lib/map/goongGlLeafletLayer";
+import {
+  getGoongMaptilesKey,
+  getOsmTileConfig,
+  shouldUseGoongBasemap,
+  VIETNAM_BOUNDS,
+} from "@/lib/map/mapConfig";
 
 // Fix Leaflet icon issue in Next.js
 import L from "leaflet";
-
-const VIETNAM_BOUNDS: [LatLngTuple, LatLngTuple] = [
-  [8.0, 102.0],
-  [23.7, 109.9],
-];
 
 // Create custom icons
 const userLocationIcon = new Icon({
@@ -167,7 +168,9 @@ export default function MapComponent({
     [userLocation.lat, userLocation.lng],
   );
 
-  const goongMaptilesKey = process.env.NEXT_PUBLIC_GOONG_MAPTILES_KEY;
+  const useGoong = shouldUseGoongBasemap();
+  const goongMaptilesKey = useGoong ? getGoongMaptilesKey() : undefined;
+  const osmTiles = getOsmTileConfig();
 
   const handleMarkerClick = async (feature: GeoJSONFeature) => {
     onMarkerClick(feature);
@@ -234,12 +237,12 @@ export default function MapComponent({
         maxBoundsViscosity={1}
         preferCanvas={true}
       >
-        {goongMaptilesKey ? (
+        {useGoong && goongMaptilesKey ? (
           <GoongBaseLayer apiKey={goongMaptilesKey} />
         ) : (
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution={osmTiles.attribution}
+            url={osmTiles.url}
             bounds={VIETNAM_BOUNDS}
             noWrap={true}
             updateWhenIdle={true}
