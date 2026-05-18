@@ -466,7 +466,7 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
                     ))}
                   </div>
                   <p className="text-neutral-700 dark:text-neutral-300 mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    "{review.text}"
+                    {`"${review.text}"`}
                   </p>
                   <div className="flex items-center gap-3">
                     <img src={review.avatar} alt={review.name} draggable={false} className="w-12 h-12 rounded-full object-cover" />
