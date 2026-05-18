@@ -4,6 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.db.models import User
+from app.core.dependencies import get_current_user
+from app.services.activity_service import log_activity
 from app.schemas.restaurant import (
     RestaurantDetailResponse,
     RestaurantSuggestion,
@@ -22,19 +25,11 @@ router = APIRouter(prefix="/restaurants", tags=["Restaurants"])
 def get_restaurant_detail(
     restaurant_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> RestaurantDetailResponse:
     """
     GET /restaurants/{id}
-
-    Trả chi tiết một nhà hàng để dùng cho detail card/drawer.
-    Bao gồm: thông tin cơ bản + concepts + purposes + amenities.
-
-    - **restaurant_id**: ID nhà hàng (số nguyên dương)
-
-    Status codes:
-    - 200: Tìm thấy
-    - 404: Không tìm thấy restaurant id
-    - 422: Id không hợp lệ
+    ...
     """
     place = get_restaurant_by_id(db, restaurant_id)
 
@@ -43,6 +38,9 @@ def get_restaurant_detail(
             status_code=404,
             detail="RESTAURANT_NOT_FOUND",
         )
+
+    # Ghi nhận hành vi VIEW
+    log_activity(db, user_id=current_user.id, action_type="VIEW", place_id=restaurant_id)
 
     return RestaurantDetailResponse(
         id=place.id,

@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.db.models import User
+from app.core.dependencies import get_current_user
+from app.services.activity_service import log_activity
 from app.schemas.search import SearchRequest, SearchResponse
 from app.services.search_service import search_facets, search_places
 
@@ -10,15 +13,14 @@ router = APIRouter(prefix="/search", tags=["Search"])
 
 
 @router.post("", response_model=SearchResponse)
-def post_search(payload: SearchRequest, db: Session = Depends(get_db)) -> SearchResponse:
+def post_search(
+    payload: SearchRequest, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SearchResponse:
 	"""
 	POST /search
-
-	Trách nhiệm chính:
-	- Lọc dữ liệu theo query + các bộ lọc
-	- Tính match_score
-	- Tính distance_km (nếu có location)
-	- Sort + phân trang (limit/offset)
+    ...
 	"""
 
 	location = None
@@ -44,6 +46,9 @@ def post_search(payload: SearchRequest, db: Session = Depends(get_db)) -> Search
 		limit=payload.limit,
 		offset=payload.offset,
 	)
+
+	# Ghi nhận hành vi SEARCH (place_id=None cho search chung)
+	log_activity(db, user_id=current_user.id, action_type="SEARCH", place_id=None)
 
 	facets = None
 	if payload.include_facets:

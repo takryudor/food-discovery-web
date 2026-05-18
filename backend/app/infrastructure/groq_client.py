@@ -23,22 +23,56 @@ class GroqClient:
         else:
             self.client = None
 
-    def get_restaurant_recommendations(self, prompt: str, context: str = "", user_location: str = "", user_context: str = "") -> list[dict]:
+    def extract_intent(self, user_query: str) -> dict:
         """
-        Sends a prompt to Groq (llama3) asking for restaurant recommendations.
-        The AI focuses on reasoning and selecting the correct ID from the provided context.
+        Uses LLM to extract structured intent (location and core query) from user message.
         """
         if not self.client:
-            return [
-                {
-                    "restaurant_id": 1,
-                    "reason": "Phở bò ngon, đậm vị truyền thống. Người dùng khen: 'Nước dùng thanh, thịt mềm'."
-                },
-                {
-                    "restaurant_id": 2,
-                    "reason": "Nổi tiếng with phở bò tái lăn. Đánh giá: 'Thơm mùi gừng, hành, rất đặc trưng'."
-                }
-            ]
+            return {"location": "", "query": user_query}
+
+        system_prompt = (
+            "Bạn là một chuyên gia phân tích ngôn ngữ tự nhiên. "
+            "Nhiệm vụ của bạn là trích xuất 'địa điểm' (location) và 'từ khóa món ăn/loại hình' (query) từ câu hỏi của người dùng. "
+            "Trả về DUY NHẤT một JSON object với hai khóa: 'location' và 'query'.\n"
+            "Ví dụ:\n"
+            "- 'các quán chay ở quận 1' -> {'location': 'quận 1', 'query': 'chay'}\n"
+            "- 'tìm nhà hàng gà rán' -> {'location': '', 'query': 'gà rán'}\n"
+            "- 'quán bún bò nào ngon gần đây' -> {'location': 'gần đây', 'query': 'bún bò'}\n"
+            "KHÔNG giải thích, KHÔNG thêm text ngoài JSON."
+        )
+
+        try:
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_query},
+                ],
+                model="llama-3.1-8b-instant",
+                temperature=0.0,
+            )
+            raw = chat_completion.choices[0].message.content
+            logging.warning(f"[GroqClient] raw intent: {raw}")
+            # Use regex to find JSON block in case AI adds preamble
+            match = re.search(r"\{.*\}", raw, re.DOTALL)
+            if match:
+                # Replace single quotes with double quotes if needed (primitive fix)
+                json_str = match.group().replace("'", '"')
+                return json.loads(json_str)
+            return {"location": "", "query": user_query}
+        except Exception as e:
+            logging.error(f"[GroqClient] Error extracting intent: {e}")
+            return {"location": "", "query": user_query}
+
+    def get_restaurant_recommendations(self, prompt: str, context: str = "", user_location: str = "", user_context: str = "", extracted_intent: dict = None) -> list[dict]:
+        """
+        Sends a prompt to Groq (llama3) asking for restaurant recommendations.
+        """
+        if not self.client:
+            return []
+
+        intent_info = ""
+        if extracted_intent:
+            intent_info = f"\nÝ ĐỊNH NGƯỜI DÙNG:\n- Địa điểm: {extracted_intent.get('location')}\n- Món ăn/Loại hình: {extracted_intent.get('query')}\n"
 
         user_info = f"\nTHÔNG TIN NGƯỜI DÙNG (Sở thích/Lịch sử):\n{user_context}\n" if user_context else ""
 
@@ -48,16 +82,17 @@ class GroqClient:
             "1. --- DANH SÁCH NHÀ HÀNG HIỆN CÓ ---: Đây là nguồn chính. Ưu tiên đề xuất từ danh sách này.\n"
             "2. --- CÁC ĐÁNH GIÁ LIÊN QUAN ---: Sử dụng để hỗ trợ lý do giới thiệu.\n\n"
             "🌍 PHẠM VI HOẠT ĐỘNG: Web hiện chỉ hỗ trợ khu vực TP.HCM.\n\n"
-            f"NGỮ CẢNH TỪ CƠ SỞ DỮ LIỆU:\n{context}\n{user_info}"
+            f"NGỮ CẢNH TỪ CƠ SỞ DỮ LIỆU:\n{context}\n{user_info}{intent_info}"
             "\n📋 HƯỚNG DẪN NGHIÊM NGẶT:\n"
-            "1. Ưu tiên đề xuất nhà hàng từ 'DANH SÁCH NHÀ HÀNG HIỆN CÓ'. Trả về 'restaurant_id' của chúng.\n"
-            "2. Nếu không có quán phù hợp trong danh sách nhưng bạn biết có quán khác rất nổi tiếng ở TP.HCM phù hợp với yêu cầu, bạn có thể đề xuất thêm (tối đa 2 quán ngoại lai).\n"
-            "3. Với các quán KHÔNG có trong danh sách, hãy đặt 'restaurant_id': 0 và BẮT BUỘC cung cấp tọa độ 'latitude' và 'longitude' chính xác.\n"
-            "4. Tối đa 3 nhà hàng tổng cộng cho mỗi yêu cầu.\n"
-            "5. Nếu người dùng hỏi về khu vực ngoài TP.HCM, hãy trả về JSON: {\"message\": \"Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này\", \"recommendations\": []}\n"
-            "6. Trả lời CHỈ bằng JSON với khóa: 'restaurant_id', 'name', 'address', 'reason', 'latitude', 'longitude'. Hoặc 'message' + 'recommendations' nếu không có kết quả.\n"
-            "7. Lý do giới thiệu phải rõ ràng, chuyên nghiệp. Nếu là quán ngoài danh sách, hãy ghi chú thông tin dựa trên kiến thức của bạn.\n"
-            "8. KHÔNG được thêm markdown, không thêm ```json, không thêm giải thích trước/sau JSON."
+            "1. Ưu tiên đề xuất nhà hàng từ 'DANH SÁCH NHÀ HÀNG HIỆN CÓ' nếu chúng thực sự phù hợp với yêu cầu (món ăn, không gian, phong cách VÀ ĐỊA ĐIỂM).\n"
+            "2. TUYỆT ĐỐI KHÔNG gượng ép đề xuất từ danh sách nếu chúng không liên quan đến yêu cầu cốt lõi. "
+            "Nếu người dùng tìm kiếm ở một Quận cụ thể nhưng danh sách chỉ có quán ở Quận khác, hãy coi đó là KHÔNG PHÙ HỢP.\n"
+            "3. Nếu danh sách hiện có không phù hợp, hãy đề xuất tối đa 2 quán nổi tiếng mà bạn biết tại TP.HCM phù hợp với yêu cầu. "
+            "Với các quán này, BẮT BUỘC đặt 'restaurant_id': 0 và cung cấp tọa độ 'latitude', 'longitude' chính xác.\n"
+            "4. Nếu người dùng hỏi về khu vực ngoài TP.HCM, hãy trả về JSON: {\"message\": \"Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này\", \"recommendations\": []}\n"
+            "5. Trả lời CHỈ bằng JSON với khóa: 'restaurant_id', 'name', 'address', 'reason', 'latitude', 'longitude'. Hoặc 'message' + 'recommendations' nếu hoàn toàn không có kết quả.\n"
+            "Lưu ý: Mọi quán KHÔNG nằm trong 'DANH SÁCH NHÀ HÀNG HIỆN CÓ' đều phải có 'restaurant_id': 0.\n"
+            "6. KHÔNG được thêm markdown, không thêm ```json, không thêm giải thích trước/sau JSON."
         )
 
         chat_completion = self.client.chat.completions.create(

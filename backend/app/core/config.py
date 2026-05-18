@@ -19,6 +19,11 @@ class Settings(BaseSettings):
 
 	# External API keys (used by AI chatbox module on dev branch).
 	groq_api_key: str = ""
+
+	# Supabase Auth Settings
+	supabase_jwt_secret: str = ""
+	supabase_jwt_algorithm: str = "HS256"
+
 	model_config = SettingsConfigDict(
 		env_file=str(Path(__file__).resolve().parents[3] / ".env"),
 		env_file_encoding="utf-8",

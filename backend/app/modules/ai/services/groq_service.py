@@ -5,6 +5,7 @@ from app.services.review_service import get_relevant_reviews
 from app.services.search_service import search_places
 from app.db.models import Place, User
 import re
+import logging
 
 
 class GroqService:
@@ -103,22 +104,30 @@ class GroqService:
     def process_chat(self, request: ChatBoxRequest, db: Session) -> ChatBoxResponse:
         """
         Processes the incoming chat request using a Hybrid Retrieval approach:
-        1. Search for matching places based on keywords (Name, Location, Category).
-        2. Search for relevant reviews based on sentiment/query.
-        3. Send rich context to AI and enrich the final response.
-        4. Validate recommendations are from DB only (no fake restaurants).
+        1. Extract structured intent (location, query) using AI.
+        2. Search for matching places based on extracted intent.
+        3. Search for relevant reviews based on core query.
+        4. Send rich context to AI and enrich the final response.
         """
-        # Early Exit: Chặn các vùng miền không hỗ trợ (Tiết kiệm Token & Chi phí)
+        # Early Exit: Chặn các vùng miền không hỗ trợ
         if self._is_unsupported_location(request.message):
             return ChatBoxResponse(
                 recommendations=[],
                 message="Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
             )
 
-        # Step 1: Lấy danh sách quán tiềm năng dựa trên từ khóa (Vị trí, tên...)
+        # Step 1: Trích xuất Intent bằng AI
+        intent = self.client.extract_intent(request.message)
+        extracted_location = intent.get("location", "")
+        extracted_query = intent.get("query", "")
+        
+        # Kết hợp location và query để search DB hiệu quả hơn
+        search_query = f"{extracted_query} {extracted_location}".strip() or request.message
+
+        # Step 2: Lấy danh sách quán tiềm năng dựa trên intent
         _, candidate_places = search_places(
             db=db,
-            query=request.message,
+            query=search_query,
             location=None,
             radius_km=None,
             concept_ids=[],
@@ -126,19 +135,17 @@ class GroqService:
             amenity_ids=[]
         )
 
-        # Fallback nếu query người dùng chứa nhiều thông tin địa danh khiến search trả rỗng.
-        if not candidate_places:
-            relaxed_query = self._sanitize_query_for_search(request.message)
-            if relaxed_query and relaxed_query != request.message.strip().lower():
-                _, candidate_places = search_places(
-                    db=db,
-                    query=relaxed_query,
-                    location=None,
-                    radius_km=None,
-                    concept_ids=[],
-                    purpose_ids=[],
-                    amenity_ids=[]
-                )
+        # Fallback nếu search_query quá hẹp
+        if not candidate_places and extracted_query:
+            _, candidate_places = search_places(
+                db=db,
+                query=extracted_query,
+                location=None,
+                radius_km=None,
+                concept_ids=[],
+                purpose_ids=[],
+                amenity_ids=[]
+            )
         
         # Lọc chỉ những quán ở TP.HCM và lấy thông tin chi tiết để làm ngữ cảnh
         hcm_places_details = []
@@ -146,6 +153,13 @@ class GroqService:
             place_id = p.get('id') if isinstance(p, dict) else p.id
             place = db.query(Place).filter(Place.id == place_id).first()
             if place and self._is_hcm_location(place.ward, place.address):
+                # Nếu có yêu cầu địa điểm cụ thể, ưu tiên lọc chặt chẽ hơn
+                if extracted_location and extracted_location.lower() not in (place.address or "").lower():
+                    # Thử kiểm tra thêm qua ward/district name nếu cần, 
+                    # nhưng đơn giản nhất là check substring trong address/description
+                    if extracted_location.lower() not in (place.description or "").lower():
+                        continue
+
                 cuisine = ", ".join([c.name for c in place.concepts] + [d.name for d in place.dishes])
                 hcm_places_details.append({
                     "id": place.id,
@@ -160,21 +174,21 @@ class GroqService:
             for p in hcm_places_details
         ])
 
-        # Step 2: Lấy các đánh giá liên quan
-        reviews = get_relevant_reviews(db, request.message, limit=10)
+        # Step 3: Lấy các đánh giá liên quan (dùng extracted_query để tránh nhiễu)
+        reviews = get_relevant_reviews(db, extracted_query or request.message, limit=10)
         reviews_context = "\n".join(reviews) if reviews else "Không có đánh giá đặc thù."
 
-        # Step 3: Tổng hợp ngữ cảnh
+        # Step 4: Tổng hợp ngữ cảnh và gọi AI
         full_context = (
             f"--- DANH SÁCH NHÀ HÀNG HIỆN CÓ ---\n{places_context}\n\n"
             f"--- CÁC ĐÁNH GIÁ LIÊN QUAN ---\n{reviews_context}"
         )
 
-        # Step 4: Gửi cho AI để chọn ID và viết lý do
         ai_recommendations = self.client.get_restaurant_recommendations(
             request.message, 
             context=full_context,
-            user_location="Ho Chi Minh City"
+            user_location="Ho Chi Minh City",
+            extracted_intent=intent
         )
 
         # Defensive normalize: phòng trường hợp client trả về dict chứa recommendations.
@@ -227,7 +241,18 @@ class GroqService:
                                 longitude=matched_place.longitude if matched_place.longitude is not None else lng
                             )
                         )
-
+                    elif lat and lng:
+                        # Fallback: AI hallucinated an ID but provided coordinates
+                        recommendations.append(
+                            RestaurantRecommendation(
+                                name=rec.get("name", "Quán ăn tại TP.HCM"),
+                                address=rec.get("address") or "TP. Hồ Chí Minh",
+                                reason=f"{reason} (Hiện tại thông tin của quán chưa được cập nhật)",
+                                restaurant_id=0,
+                                latitude=lat,
+                                longitude=lng
+                            )
+                        )
             # Case 2: Quán AI tự gợi ý (ngoại lai) hoặc không tìm thấy ID
             elif res_id == 0 or (not res_id and rec.get("name")):
                 # Thử tìm trong DB một lần nữa theo tên để chắc chắn không bị trùng
