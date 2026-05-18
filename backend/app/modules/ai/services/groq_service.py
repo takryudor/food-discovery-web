@@ -3,7 +3,7 @@ from app.infrastructure.groq_client import GroqClient
 from app.modules.ai.schemas import ChatBoxRequest, ChatBoxResponse, RestaurantRecommendation
 from app.services.review_service import get_relevant_reviews
 from app.services.search_service import search_places
-from app.db.models import Place
+from app.db.models import Place, User
 import re
 
 
@@ -33,6 +33,14 @@ class GroqService:
 
     def _sanitize_query_for_search(self, text: str) -> str:
         sanitized = (text or "").lower()
+        # Bỏ các từ khoá chung chung không mang tính định danh món ăn/địa điểm
+        stop_words = [
+            "tìm", "cho", "tôi", "quán", "nhà", "hàng", "ở", "tại", "có", "nào", "ngon", 
+            "rẻ", "phục", "vụ", "nhiệt", "tình", "giúp", "với", "đâu"
+        ]
+        pattern = r"\b(" + "|".join(stop_words) + r")\b"
+        sanitized = re.sub(pattern, " ", sanitized)
+
         # Bỏ bớt cụm địa danh để tăng recall cho search nội dung món ăn.
         sanitized = re.sub(r"\b(quận|quan|q\.?|phường|phuong|p\.?|tp\.?|thành phố|thanh pho|hcm|hà nội|ha noi)\b", " ", sanitized)
         sanitized = re.sub(r"\b\d+\b", " ", sanitized)
@@ -81,9 +89,15 @@ class GroqService:
             r"\bhà nội\b", r"\bhanoi\b", r"\bđà nẵng\b", r"\bda nang\b",
             r"\bhải phòng\b", r"\bhai phong\b", r"\bcần thơ\b", r"\bcan tho\b",
             r"\bnha trang\b", r"\bđà lạt\b", r"\bda lat\b", r"\bvũng tàu\b", r"\bvung tau\b",
-            r"\bhuế\b", r"\bphú quốc\b", r"\bphu quoc\b"
+            r"\bphú quốc\b", r"\bphu quoc\b"
         ]
+        # Chế độ kiểm tra đặc biệt cho Huế - tránh nhầm lẫn với món "Bún bò Huế"
         text_lower = text.lower()
+        if re.search(r"\bhuế\b", text_lower):
+            # Nếu có "huế" nhưng KHÔNG có "bún bò", thì có khả năng là hỏi về địa danh Huế
+            if not re.search(r"\bbún bò\b", text_lower):
+                return True
+        
         return any(re.search(pattern, text_lower) for pattern in unsupported_patterns)
 
     def process_chat(self, request: ChatBoxRequest, db: Session) -> ChatBoxResponse:
@@ -126,15 +140,25 @@ class GroqService:
                     amenity_ids=[]
                 )
         
-        # Lọc chỉ những quán ở TP.HCM
-        hcm_places = []
+        # Lọc chỉ những quán ở TP.HCM và lấy thông tin chi tiết để làm ngữ cảnh
+        hcm_places_details = []
         for p in candidate_places[:10]:
             place_id = p.get('id') if isinstance(p, dict) else p.id
             place = db.query(Place).filter(Place.id == place_id).first()
             if place and self._is_hcm_location(place.ward, place.address):
-                hcm_places.append(p)
+                cuisine = ", ".join([c.name for c in place.concepts] + [d.name for d in place.dishes])
+                hcm_places_details.append({
+                    "id": place.id,
+                    "name": place.name,
+                    "address": place.address,
+                    "price_range": place.price_range or "Chưa cập nhật",
+                    "cuisine": cuisine or "Đa dạng"
+                })
 
-        places_context = "\n".join([f"[Restaurant ID: {p['id']}] {p['name']} - Địa chỉ: {p['address']}" for p in hcm_places[:10]])
+        places_context = "\n".join([
+            f"[ID: {p['id']}] {p['name']} - Đ/c: {p['address']} - Giá: {p['price_range']} - Món: {p['cuisine']}" 
+            for p in hcm_places_details
+        ])
 
         # Step 2: Lấy các đánh giá liên quan
         reviews = get_relevant_reviews(db, request.message, limit=10)
@@ -168,70 +192,91 @@ class GroqService:
             # Case: AI trả về message thông báo (không đủ dữ liệu hoặc ngoài TPHCM)
             if "message" in rec and "recommendations" in rec:
                 notification_message = rec["message"]
-                # Không thêm recommendation nào nếu có message
                 continue
 
             res_id = rec.get("restaurant_id")
             reason = rec.get("reason", "")
-            # Chỉ chấp nhận recommendations từ DB (restaurant_id > 0)
+            lat = rec.get("latitude")
+            lng = rec.get("longitude")
+
+            # Case 1: Quán có trong DB (restaurant_id > 0)
             if res_id and res_id > 0:
                 place = db.query(Place).filter(Place.id == res_id).first()
                 if place and self._is_hcm_location(place.ward, place.address):
-                    # Quán có trong DB và ở TP.HCM
                     recommendations.append(
                         RestaurantRecommendation(
                             name=place.name,
                             address=place.address or "Địa chỉ đang cập nhật",
                             reason=reason,
-                            restaurant_id=res_id,  # Thêm ID để FE sử dụng nếu cần
-                            latitude=place.latitude,
-                            longitude=place.longitude
+                            restaurant_id=res_id,
+                            latitude=place.latitude if place.latitude is not None else lat,
+                            longitude=place.longitude if place.longitude is not None else lng
                         )
                     )
                 else:
-                    if not notification_message:
-                        notification_message = "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
-            else:
-                # AI tự gợi ý không có ID: thử ghép theo tên từ quán thực trong DB trước khi từ chối.
-                matched_place = self._find_hcm_place_by_name(db, hcm_places, rec.get("name"))
+                    # Nếu ID sai lệch, thử tìm lại theo tên
+                    matched_place = self._find_hcm_place_by_name(db, hcm_places_details, rec.get("name"))
+                    if matched_place:
+                        recommendations.append(
+                            RestaurantRecommendation(
+                                name=matched_place.name,
+                                address=matched_place.address or "Địa chỉ đang cập nhật",
+                                reason=reason,
+                                restaurant_id=matched_place.id,
+                                latitude=matched_place.latitude if matched_place.latitude is not None else lat,
+                                longitude=matched_place.longitude if matched_place.longitude is not None else lng
+                            )
+                        )
+
+            # Case 2: Quán AI tự gợi ý (ngoại lai) hoặc không tìm thấy ID
+            elif res_id == 0 or (not res_id and rec.get("name")):
+                # Thử tìm trong DB một lần nữa theo tên để chắc chắn không bị trùng
+                matched_place = self._find_hcm_place_by_name(db, hcm_places_details, rec.get("name"))
                 if matched_place:
                     recommendations.append(
                         RestaurantRecommendation(
                             name=matched_place.name,
                             address=matched_place.address or "Địa chỉ đang cập nhật",
-                            reason=reason or "Gợi ý dựa trên dữ liệu có sẵn trong hệ thống.",
+                            reason=reason,
                             restaurant_id=matched_place.id,
-                            latitude=matched_place.latitude,
-                            longitude=matched_place.longitude
+                            latitude=matched_place.latitude if matched_place.latitude is not None else lat,
+                            longitude=matched_place.longitude if matched_place.longitude is not None else lng
                         )
                     )
-                elif not notification_message:
-                    notification_message = "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
-
-        # Nếu AI không tuân thủ format nhưng search DB có kết quả, trả fallback từ DB để FE vẫn hiển thị.
-        if not recommendations and hcm_places:
-            for p in hcm_places[:3]:
-                place_id = p.get("id") if isinstance(p, dict) else p.id
-                place = db.query(Place).filter(Place.id == place_id).first()
-                if not place:
-                    continue
-                recommendations.append(
-                    RestaurantRecommendation(
-                        name=place.name,
-                        address=place.address or "Địa chỉ đang cập nhật",
-                        reason="Gợi ý dựa trên dữ liệu có sẵn trong hệ thống.",
-                        restaurant_id=place.id,
-                        latitude=place.latitude,
-                        longitude=place.longitude
+                elif lat and lng:
+                    # Quán thực sự không có trong DB nhưng có tọa độ từ AI
+                    recommendations.append(
+                        RestaurantRecommendation(
+                            name=rec.get("name", "Quán ăn tại TP.HCM"),
+                            address=rec.get("address") or "TP. Hồ Chí Minh",
+                            reason=f"{reason} (Hiện tại thông tin của quán chưa được cập nhật)",
+                            restaurant_id=0,
+                            latitude=lat,
+                            longitude=lng
+                        )
                     )
-                )
+
+        # Fallback từ DB nếu AI không trả về kết quả hợp lệ
+        if not recommendations and hcm_places_details:
+            for p in hcm_places_details[:3]:
+                place = db.query(Place).filter(Place.id == p['id']).first()
+                if place:
+                    recommendations.append(
+                        RestaurantRecommendation(
+                            name=place.name,
+                            address=place.address or "Địa chỉ đang cập nhật",
+                            reason="Gợi ý dựa trên dữ liệu có sẵn trong hệ thống.",
+                            restaurant_id=place.id,
+                            latitude=place.latitude,
+                            longitude=place.longitude
+                        )
+                    )
 
             if recommendations:
                 notification_message = None
 
-        # Nếu không có recommendations thực, trả về thông báo
+        # Nếu vẫn không có recommendations thực, trả về thông báo
         if not recommendations and not notification_message:
-            # Fallback: không có dữ liệu nào
             notification_message = "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
 
         return ChatBoxResponse(

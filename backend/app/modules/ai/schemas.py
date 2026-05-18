@@ -3,6 +3,7 @@ from typing import Optional
 
 class ChatBoxRequest(BaseModel):
     message: str
+    user_id: Optional[int] = None
 
 class RestaurantRecommendation(BaseModel):
     name: str
