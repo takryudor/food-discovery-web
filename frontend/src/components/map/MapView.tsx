@@ -23,6 +23,7 @@ import {
   Check,
   Plus,
   Minus,
+  ChevronDown,
   ChevronRight,
 } from "lucide-react";
 import type { Map as LeafletMap } from "leaflet";
@@ -48,20 +49,39 @@ import {
 import { useFilterStore } from "@/store/filterStore";
 import { useMapStore } from "@/store/mapStore";
 import { useSearchStore } from "@/store/searchStore";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const PICK_LOCATION_OFFSET_PX = 44;
+
+function MapChunkLoading() {
+  const { t } = useLanguage();
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-neutral-100 dark:bg-neutral-900">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          {t("loadingMap")}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // Load Leaflet map only on client to avoid `window is not defined` during SSR.
 const MapComponent = dynamic(() => import("./MapComponent"), {
   ssr: false,
-  loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-900">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
-        <p className="text-neutral-600">Đang tải bản đồ...</p>
-      </div>
-    </div>
-  ),
+  loading: () => <MapChunkLoading />,
 });
 
 interface MapViewProps {
@@ -386,10 +406,26 @@ export default function MapView({
   const [mockSwitchMessage, setMockSwitchMessage] = useState<string | null>(
     null,
   );
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const [suggestionsFetchFailed, setSuggestionsFetchFailed] = useState(false);
 
   const radiusOptions = [3, 5, 8, 10];
   const numberOfPlaceOptions = [1, 3, 5, 8, 10];
   const isSearchActive = isSearchFocused || showSuggestions;
+
+  const advancedSelectionCount =
+    selectedPurposes.length + selectedAmenities.length;
+  const noTagFiltersSelected =
+    selectedConcepts.length === 0 &&
+    selectedPurposes.length === 0 &&
+    selectedAmenities.length === 0 &&
+    selectedBudgetRanges.length === 0;
+
+  useEffect(() => {
+    if (advancedSelectionCount > 0) {
+      setAdvancedFiltersOpen(true);
+    }
+  }, [advancedSelectionCount]);
 
   useEffect(() => {
     setUseMockData(getUseMockData());
@@ -474,7 +510,8 @@ export default function MapView({
         console.warn("[DEBUG] All filter lists are empty!");
       }
     } catch (err) {
-      console.error("[DEBUG] Failed to load filters:", err);
+      // Backend down / CORS: expected in dev; UI shows `error` banner — avoid console.error (noisy in Turbopack).
+      console.warn("[DEBUG] Failed to load filters:", err);
       const errorMsg = (err as Error).message || "Unknown error";
       setError(`${t("filterError")}: ${errorMsg}`);
     } finally {
@@ -494,6 +531,7 @@ export default function MapView({
 
       if (normalizedQuery.length >= 1) {
         setIsLoadingSuggestions(true);
+        setSuggestionsFetchFailed(false);
         try {
           const suggestions = await searchRestaurantsFulltext(normalizedQuery, 8);
           setSearchSuggestions(suggestions);
@@ -501,12 +539,14 @@ export default function MapView({
         } catch (err) {
           console.error("Autocomplete error:", err);
           setSearchSuggestions([]);
+          setSuggestionsFetchFailed(true);
           setShowSuggestions(true);
         } finally {
           setIsLoadingSuggestions(false);
         }
       } else {
         setIsLoadingSuggestions(false);
+        setSuggestionsFetchFailed(false);
         setShowSuggestions(false);
         setSearchSuggestions([]);
       }
@@ -859,7 +899,7 @@ export default function MapView({
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     className="p-1.5 -ml-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
-                    title="Đóng"
+                    title={t("closePanel")}
                   >
                     <ChevronRight className="w-6 h-6 text-neutral-500" />
                   </motion.button>
@@ -931,7 +971,12 @@ export default function MapView({
                         {isLoadingSuggestions ? (
                           <div className="px-4 py-3 text-sm text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            Đang tìm gợi ý...
+                            {t("suggestionsLoading")}
+                          </div>
+                        ) : suggestionsFetchFailed ? (
+                          <div className="flex items-center gap-2 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+                            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                            {t("searchError")}
                           </div>
                         ) : searchSuggestions.length > 0 ? (
                           searchSuggestions.map((suggestion) => (
@@ -989,57 +1034,103 @@ export default function MapView({
                     </motion.div>
                   )}
 
+                  {!isLoadingFilters &&
+                    noTagFiltersSelected &&
+                    searchQuery.trim() === "" && (
+                      <div
+                        role="status"
+                        className="rounded-2xl border border-neutral-200/80 bg-neutral-50/90 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-700/60 dark:bg-neutral-800/50 dark:text-neutral-300"
+                      >
+                        {t("filterHintNoSelection")}
+                      </div>
+                    )}
+
                   {/* Loading state */}
                   {isLoadingFilters ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-                      <span className="ml-3 text-neutral-600">
+                      <span className="ml-3 text-neutral-600 dark:text-neutral-400">
                         {t("loadingFilters")}
                       </span>
                     </div>
                   ) : (
                     <>
-                      {/* Concept filters - luôn hiển thị section dù rỗng */}
-                      <FilterSection
-                        title={t("concept")}
-                        tags={conceptsList}
-                        selected={selectedConcepts}
-                        onToggle={toggleConcept}
-                        color="blue"
-                        isEmpty={conceptsList.length === 0}
-                      />
+                      <div className="space-y-5 rounded-2xl border border-neutral-200/80 bg-white/40 p-4 dark:border-neutral-700/70 dark:bg-neutral-800/35">
+                        <p
+                          className="text-sm font-semibold text-neutral-700 dark:text-neutral-200"
+                          style={{ fontFamily: "Inter, sans-serif" }}
+                        >
+                          {t("filtersPrimaryHeading")}
+                        </p>
+                        <FilterSection
+                          title={t("concept")}
+                          tags={conceptsList}
+                          selected={selectedConcepts}
+                          onToggle={toggleConcept}
+                          color="blue"
+                          isEmpty={conceptsList.length === 0}
+                        />
+                        <FilterSection
+                          title={t("budgetRange")}
+                          tags={budgetRangesList}
+                          selected={selectedBudgetRanges}
+                          onToggle={toggleBudgetRange}
+                          color="orange"
+                          isEmpty={budgetRangesList.length === 0}
+                        />
+                      </div>
 
-                      {/* Purpose filters */}
-                      <FilterSection
-                        title={t("purpose")}
-                        tags={purposesList}
-                        selected={selectedPurposes}
-                        onToggle={togglePurpose}
-                        color="green"
-                        isEmpty={purposesList.length === 0}
-                      />
+                      <Collapsible
+                        open={advancedFiltersOpen}
+                        onOpenChange={setAdvancedFiltersOpen}
+                        className="rounded-2xl border border-neutral-200/80 bg-white/40 dark:border-neutral-700/70 dark:bg-neutral-800/35"
+                      >
+                        <CollapsibleTrigger
+                          type="button"
+                          className="flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-left transition-colors hover:bg-neutral-100/90 dark:hover:bg-neutral-800/60"
+                        >
+                          <span className="flex items-center gap-2">
+                            <ChevronDown
+                              className={`h-5 w-5 shrink-0 text-neutral-500 transition-transform duration-200 ${
+                                advancedFiltersOpen ? "rotate-180" : ""
+                              }`}
+                              aria-hidden
+                            />
+                            <span
+                              className="font-semibold text-neutral-800 dark:text-neutral-100"
+                              style={{ fontFamily: "Inter, sans-serif" }}
+                            >
+                              {t("filterAdvanced")}
+                            </span>
+                            {advancedSelectionCount > 0 ? (
+                              <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-700 dark:text-orange-300">
+                                {advancedSelectionCount}
+                              </span>
+                            ) : null}
+                          </span>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="border-t border-neutral-200/70 px-4 pb-4 pt-1 dark:border-neutral-700/60">
+                          <div className="space-y-6 pt-4">
+                            <FilterSection
+                              title={t("purpose")}
+                              tags={purposesList}
+                              selected={selectedPurposes}
+                              onToggle={togglePurpose}
+                              color="green"
+                              isEmpty={purposesList.length === 0}
+                            />
+                            <FilterSection
+                              title={t("amenities")}
+                              tags={amenitiesList}
+                              selected={selectedAmenities}
+                              onToggle={toggleAmenity}
+                              color="purple"
+                              isEmpty={amenitiesList.length === 0}
+                            />
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
 
-                      {/* Amenities filters */}
-                      <FilterSection
-                        title={t("amenities")}
-                        tags={amenitiesList}
-                        selected={selectedAmenities}
-                        onToggle={toggleAmenity}
-                        color="purple"
-                        isEmpty={amenitiesList.length === 0}
-                      />
-
-                      {/* Budget Range filters */}
-                      <FilterSection
-                        title={t("budgetRange")}
-                        tags={budgetRangesList}
-                        selected={selectedBudgetRanges}
-                        onToggle={toggleBudgetRange}
-                        color="orange"
-                        isEmpty={budgetRangesList.length === 0}
-                      />
-
-                      {/* Thông báo khi tất cả filters đều rỗng */}
                       {conceptsList.length === 0 &&
                         purposesList.length === 0 &&
                         amenitiesList.length === 0 &&
@@ -1047,18 +1138,19 @@ export default function MapView({
                           <motion.div
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl"
+                            className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20"
                           >
-                            <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-2">
+                            <p className="mb-2 text-sm text-yellow-700 dark:text-yellow-400">
                               ⚠️ {t("filterError")}
                             </p>
                             <button
+                              type="button"
                               onClick={() => {
                                 setUseMockData(true);
                                 setApiMockData(true);
                                 loadFilters();
                               }}
-                              className="text-sm px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors"
+                              className="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm text-white transition-colors hover:bg-yellow-600"
                             >
                               {t("useMockData")}
                             </button>
@@ -1106,27 +1198,41 @@ export default function MapView({
                   {/* Number of places */}
                   <div className="space-y-4">
                   <h3
+                    id="map-filter-number-of-places"
                     className="font-semibold text-neutral-700 dark:text-neutral-300"
                     style={{ fontFamily: "Inter, sans-serif" }}
                   >
                     {t("numberOfPlaces")}
                   </h3>
-                  <select
-                    value={numberOfPlaces}
-                    onChange={(e) =>
-                      setNumberOfPlaces(parseInt(e.target.value))
-                    }
-                    className="w-full px-4 py-4 rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white/50 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
-                    style={{ fontFamily: "Inter, sans-serif" }}
+                  <Select
+                    value={String(numberOfPlaces)}
+                    onValueChange={(v) => setNumberOfPlaces(parseInt(v, 10))}
                   >
-                    {numberOfPlaceOptions.map((num) => (
-                      <option key={num} value={num}>
-                        {num === 5
-                          ? `${t("auto")} (5 ${t("restaurants")})`
-                          : `${num} ${t("restaurants")}`}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger
+                      aria-labelledby="map-filter-number-of-places"
+                      className="h-auto min-h-14 w-full rounded-2xl border border-orange-200/80 bg-white/80 px-4 py-3 text-base shadow-sm transition-all hover:bg-white dark:border-orange-900/45 dark:bg-neutral-800/70 dark:hover:bg-neutral-800/90 dark:text-neutral-100 focus-visible:border-orange-400 focus-visible:ring-[3px] focus-visible:ring-orange-500/35 [&_svg]:opacity-70"
+                      style={{ fontFamily: "Inter, sans-serif" }}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      className="z-[620] min-w-[var(--radix-select-trigger-width)] rounded-2xl border border-orange-200/90 bg-white p-1.5 shadow-xl shadow-orange-950/[0.08] dark:border-orange-900/55 dark:bg-neutral-900 dark:shadow-black/50"
+                    >
+                      {numberOfPlaceOptions.map((num) => (
+                        <SelectItem
+                          key={num}
+                          value={String(num)}
+                          className="cursor-pointer rounded-xl py-2.5 pr-9 text-[15px] focus:bg-orange-500/12 focus:text-orange-950 data-[highlighted]:bg-orange-500/12 data-[highlighted]:text-orange-950 data-[state=checked]:bg-orange-500/10 data-[state=checked]:text-orange-950 dark:focus:bg-orange-500/18 dark:focus:text-orange-50 dark:data-[highlighted]:bg-orange-500/18 dark:data-[highlighted]:text-orange-50 dark:data-[state=checked]:bg-orange-500/15 dark:data-[state=checked]:text-orange-50"
+                          style={{ fontFamily: "Inter, sans-serif" }}
+                        >
+                          {num === 5
+                            ? `${t("auto")} (5 ${t("restaurants")})`
+                            : `${num} ${t("restaurants")}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   </div>
                 </div>
               </div>
@@ -1243,7 +1349,7 @@ export default function MapView({
                 onClick={() => setShowEmptyMessage(false)}
                 className="px-6 py-2 text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
               >
-                {t("Để sau")} {/* Hoặc text cứng nếu bạn chưa có i18n cho key này */}
+                {t("holdOn")}
               </button>
             </div>
           </div>
@@ -1262,7 +1368,7 @@ export default function MapView({
           <motion.button
             onClick={handleZoomIn}
             className="p-1.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/90 transition-all flex items-center justify-center w-7 h-7 flex-shrink-0"
-            title="Zoom in"
+            title={t("zoomIn")}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -1274,7 +1380,7 @@ export default function MapView({
           <motion.button
             onClick={handleZoomOut}
             className="p-1.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/90 transition-all flex items-center justify-center w-7 h-7 flex-shrink-0"
-            title="Zoom out"
+            title={t("zoomOut")}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -1544,7 +1650,7 @@ function FilterSection({
         >
           {title}
         </h3>
-        <p className="text-xs text-neutral-400 italic">Đang tải...</p>
+        <p className="text-xs text-neutral-400 italic">{t("filterLoading")}</p>
       </div>
     );
   }

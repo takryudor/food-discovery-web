@@ -15,9 +15,11 @@ import {
   X,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
+import "@goongmaps/goong-js/dist/goong-js.css";
 import { UserLocation, GeoJSONFeature, RestaurantDetail } from "@/lib/types";
 import { getRestaurantDetail } from "@/lib/api/restaurant";
 import { useLanguage } from "@/components/providers/LanguageContext";
+import { createGoongGlLayer } from "@/lib/map/goongGlLeafletLayer";
 
 // Fix Leaflet icon issue in Next.js
 import L from "leaflet";
@@ -128,6 +130,19 @@ function MapCenterUpdater({
   return null;
 }
 
+/** Goong vector basemap (replaces OSM tiles when `NEXT_PUBLIC_GOONG_MAPTILES_KEY` is set). */
+function GoongBaseLayer({ apiKey }: { apiKey: string }) {
+  const map = useMap();
+  useEffect(() => {
+    const layer = createGoongGlLayer({ apiKey });
+    map.addLayer(layer);
+    return () => {
+      map.removeLayer(layer);
+    };
+  }, [map, apiKey]);
+  return null;
+}
+
 export default function MapComponent({
   userLocation,
   markers,
@@ -151,6 +166,8 @@ export default function MapComponent({
     () => [userLocation.lat, userLocation.lng],
     [userLocation.lat, userLocation.lng],
   );
+
+  const goongMaptilesKey = process.env.NEXT_PUBLIC_GOONG_MAPTILES_KEY;
 
   const handleMarkerClick = async (feature: GeoJSONFeature) => {
     onMarkerClick(feature);
@@ -217,13 +234,17 @@ export default function MapComponent({
         maxBoundsViscosity={1}
         preferCanvas={true}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          bounds={VIETNAM_BOUNDS}
-          noWrap={true}
-          updateWhenIdle={true}
-        />
+        {goongMaptilesKey ? (
+          <GoongBaseLayer apiKey={goongMaptilesKey} />
+        ) : (
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            bounds={VIETNAM_BOUNDS}
+            noWrap={true}
+            updateWhenIdle={true}
+          />
+        )}
         {mapLeafletRef ? <MapInstanceExposer mapRef={mapLeafletRef} /> : null}
         <MapCenterUpdater center={center} enabled={syncCenterToUser} />
 
