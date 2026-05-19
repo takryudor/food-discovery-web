@@ -30,6 +30,7 @@ import type { Map as LeafletMap } from "leaflet";
 import { useLanguage } from "@/components/providers/LanguageContext";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import SettingsDropdown from "@/components/common/SettingsDropdown";
+import LoginModal from "@/components/auth/LoginModal";
 import OdysseusAI from "@/components/restaurant/components/OdysseusAI";
 import type { SuggestedRestaurant } from "@/components/restaurant/components/OdysseusAI";
 import { getFiltersOptions } from "@/lib/api/filters";
@@ -401,6 +402,7 @@ export default function MapView({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isLeavingMap, setIsLeavingMap] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   // Keep SSR and first client render consistent, then sync from localStorage on mount.
   const [useMockData, setUseMockData] = useState(true);
   const [mockSwitchMessage, setMockSwitchMessage] = useState<string | null>(
@@ -850,6 +852,7 @@ export default function MapView({
           onMarkerClick={handleMarkerClick}
           onConfirmRestaurant={handleConfirmRestaurant}
           onViewOtherRestaurants={handleViewOtherRestaurants}
+          onRequireAuth={() => setShowLoginModal(true)}
           isLoading={isLoading}
           mapLeafletRef={mapLeafletRef}
           syncCenterToUser={!isSettingLocation}
@@ -1522,6 +1525,11 @@ export default function MapView({
           />
         </div>
       </div>
+
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
     </div>
   );
 }

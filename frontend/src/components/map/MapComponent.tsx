@@ -15,11 +15,10 @@ import {
   X,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
-import "@goongmaps/goong-js/dist/goong-js.css";
 import { UserLocation, GeoJSONFeature, RestaurantDetail } from "@/lib/types";
 import { getRestaurantDetail } from "@/lib/api/restaurant";
+import FavoriteButton from "@/components/favorites/FavoriteButton";
 import { useLanguage } from "@/components/providers/LanguageContext";
-import { createGoongGlLayer } from "@/lib/map/goongGlLeafletLayer";
 import {
   getGoongMaptilesKey,
   getOsmTileConfig,
@@ -91,6 +90,7 @@ interface MapComponentProps {
   onMarkerClick: (feature: GeoJSONFeature) => void;
   onConfirmRestaurant: (restaurant: RestaurantDetail) => void;
   onViewOtherRestaurants: () => void;
+  onRequireAuth?: () => void;
   isLoading: boolean;
   /** When false, map view is not forced to follow `userLocation` (e.g. user is panning to pick a point). */
   syncCenterToUser?: boolean;
@@ -131,14 +131,29 @@ function MapCenterUpdater({
   return null;
 }
 
-/** Goong vector basemap (replaces OSM tiles when `NEXT_PUBLIC_GOONG_MAPTILES_KEY` is set). */
+/** Goong vector basemap (replaces OSM tiles when Goong mode is enabled). */
 function GoongBaseLayer({ apiKey }: { apiKey: string }) {
   const map = useMap();
   useEffect(() => {
-    const layer = createGoongGlLayer({ apiKey });
-    map.addLayer(layer);
+    let cancelled = false;
+    let layer: L.Layer | null = null;
+    void (async () => {
+      try {
+        const { createGoongGlLayer } = await import(
+          "@/lib/map/goongGlLeafletLayer"
+        );
+        if (cancelled) return;
+        layer = createGoongGlLayer({ apiKey });
+        map.addLayer(layer);
+      } catch (err) {
+        console.error("Failed to load Goong basemap:", err);
+      }
+    })();
     return () => {
-      map.removeLayer(layer);
+      cancelled = true;
+      if (layer) {
+        map.removeLayer(layer);
+      }
     };
   }, [map, apiKey]);
   return null;
@@ -151,6 +166,7 @@ export default function MapComponent({
   onMarkerClick,
   onConfirmRestaurant,
   onViewOtherRestaurants,
+  onRequireAuth,
   isLoading,
   syncCenterToUser = true,
   hideUserMarker = false,
@@ -378,6 +394,7 @@ export default function MapComponent({
               onConfirmRestaurant(selectedRestaurant);
               setSelectedRestaurant(null);
             }}
+            onRequireAuth={onRequireAuth}
           />
         )}
       </AnimatePresence>
@@ -390,12 +407,14 @@ interface RestaurantDetailPanelProps {
   restaurant: RestaurantDetail;
   onClose: () => void;
   onConfirm: () => void;
+  onRequireAuth?: () => void;
 }
 
 function RestaurantDetailPanel({
   restaurant,
   onClose,
   onConfirm,
+  onRequireAuth,
 }: RestaurantDetailPanelProps) {
   const { t } = useLanguage();
   return (
@@ -433,6 +452,11 @@ function RestaurantDetailPanel({
             />
             {/* Gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+            <FavoriteButton
+              restaurantId={restaurant.id}
+              onRequireAuth={onRequireAuth}
+            />
 
             {/* Close button */}
             <motion.button
