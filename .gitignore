@@ -55,3 +55,7 @@ dist/
 build/
 tmp/
 
+#Crafts 
+plans/
+GEMINI.md
+

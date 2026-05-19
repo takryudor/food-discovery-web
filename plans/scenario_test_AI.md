@@ -1,82 +1,74 @@
-# FoOdyssey AI Chatbox - Manual Testing Scenarios
+# FoOdyssey AI Chatbox - Kịch bản Kiểm thử Hệ thống (Testing Scenarios)
 
-This document provides a structured guide for manual testing of the AI Chatbox feature. These scenarios cover core functionality, edge cases, and resilience logic.
+Tài liệu này tổng hợp các kịch bản kiểm thử cho AI Chatbox, tập trung vào khả năng trích xuất ý định (Intent), lọc địa điểm nghiêm ngặt và xử lý thông tin cá nhân hóa dựa trên những cập nhật mới nhất từ Backend.
 
-## Testing Environment
-- **Endpoint:** `POST /ai/chatbox`
-- **Base URL:** `http://localhost:8000` (Default)
-- **Headers:** `Content-Type: application/json`
-
----
-
-## Scenarios
-
-### Scenario 1: Basic Dish Search (Success)
-**Goal:** Verify AI returns relevant restaurants for a simple dish name.
-- **Input:** `{"message": "Tôi muốn ăn phở"}`
-- **Expected Outcome:** 
-    - Status: `200 OK`
-    - Data: A list of 1-3 restaurants in TP.HCM that serve Phở.
-    - Field `reason`: Should mention specific qualities (e.g., "Nước dùng thanh, đậm đà").
-
-### Scenario 2: The "Bún bò Huế" Edge Case (Success)
-**Goal:** Ensure queries for "Bún bò Huế" are NOT blocked by the location filter (which blocks the city "Huế").
-- **Input:** `{"message": "Tìm quán bún bò huế ngon"}`
-- **Expected Outcome:** 
-    - Status: `200 OK`
-    - Data: Successfully returns matching restaurants in TP.HCM.
-    - Logic Check: The "Early Exit" logic should detect this as a dish, not a request for restaurants *in the city of Huế*.
-
-### Scenario 3: Natural Language with Filler Words (Success)
-**Goal:** Verify the system can extract keywords from conversational Vietnamese.
-- **Input:** `{"message": "Làm ơn tìm giúp tôi một vài quán cà phê không gian yên tĩnh để làm việc ở TP.HCM"}`
-- **Expected Outcome:** 
-    - The system strips "Làm ơn tìm giúp tôi," "một vài," "ở TP.HCM" and searches for "quán cà phê không gian yên tĩnh."
-    - Returns relevant cafe results from the DB.
-
-### Scenario 4: Unsupported Location (Negative)
-**Goal:** Verify the system correctly informs users when a location is outside TP.HCM.
-- **Input:** `{"message": "Tôi muốn ăn bánh đa cua ở Hải Phòng"}`
-- **Expected Outcome:** 
-    - `recommendations`: `[]` (Empty)
-    - `message`: "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
-
-### Scenario 5: API Quota/Failure Fallback (Resilience)
-**Goal:** Ensure the system still works even if the Gemini API is down or throttled.
-- **How to Test:** Send multiple rapid requests to trigger a `429 Quota Exceeded` (or temporarily use an invalid key in `.env`).
-- **Expected Outcome:** 
-    - Status: `200 OK`
-    - The system detects the API error and automatically switches to **Database Fallback**.
-    - It returns relevant restaurants directly from the DB with a generic reason: *"Gợi ý dựa trên dữ liệu có sẵn trong hệ thống."*
+## 1. Môi trường Kiểm thử
+- **Endpoint:** `POST /api/v1/ai/chatbox` (hoặc `/ai/chatbox` tùy route)
+- **Header:** `Authorization: Bearer <TOKEN>` (Bắt buộc để kiểm tra tính năng cá nhân hóa)
 
 ---
 
-## Manual Execution (CLI Examples)
+## 2. Các Nhóm Kịch bản (Scenarios)
 
-### Test Basic Search
+### Nhóm A: Kiểm thử Trích xuất Ý định (Intent Extraction)
+**Mục tiêu:** Đảm bảo AI tách được đúng món ăn và địa điểm từ câu hỏi tự nhiên.
+
+| ID | Câu hỏi (Message) | Kết quả mong đợi (Intent) | Ghi chú |
+|:---|:---|:---|:---|
+| A1 | "Tìm quán bún bò ở Quận 1" | `query: "bún bò"`, `location: "Quận 1"` | Trường hợp cơ bản. |
+| A2 | "có chỗ nào ăn chay gần đây không?" | `query: "chay"`, `location: "gần đây"` | Xử lý từ khóa "gần đây". |
+| A3 | "muốn uống cà phê không gian yên tĩnh q3" | `query: "cà phê không gian yên tĩnh"`, `location: "q3"` | Viết tắt Quận 3. |
+
+### Nhóm B: Kiểm thử Lọc Địa điểm Nghiêm ngặt (Strict Filtering)
+**Mục tiêu:** Đảm bảo AI chỉ gợi ý quán trong DB đúng Quận yêu cầu, không gượng ép kết quả sai lệch.
+
+| ID | Câu hỏi (Message) | Kết quả mong đợi | Hành vi Backend |
+|:---|:---|:---|:---|
+| B1 | "Quán phở ở Quận 7" | Trả về các quán Phở có địa chỉ thuộc Quận 7 trong DB. | `GroqService` lọc substring "Quận 7" trong address. |
+| B2 | "Tìm sushi ở Quận 2" | Trả về quán Sushi tại Quận 2 hoặc TP. Thủ Đức. | Ưu tiên quán trong DB. |
+| B3 | "Quán ốc ở Cần Thơ" | "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này" | Early Exit kích hoạt (Chặn tỉnh khác). |
+| B4 | "Tìm quán bún bò huế" | Trả về quán Bún bò Huế tại TP.HCM. | Bỏ qua lọc "Huế" vì là tên món ăn (Fix logic). |
+
+### Nhóm C: Kiểm thử Chống ảo giác (Anti-Hallucination)
+**Mục tiêu:** AI không được tự chế quán hoặc phải đánh dấu rõ quán ngoài DB.
+
+| ID | Câu hỏi (Message) | Kết quả mong đợi | Logic Check |
+|:---|:---|:---|:---|
+| C1 | "Quán Pizza 4P's Bến Thành" | Trả về đúng quán Pizza 4P's kèm `restaurant_id` từ DB. | Ưu tiên khớp ID trong Context. |
+| C2 | "Quán ăn nào mới mở ở Quận 1" (Không có trong DB) | Có thể gợi ý quán nổi tiếng ngoài DB nhưng `restaurant_id` PHẢI là `0`. | AI tự cung cấp Lat/Lng và ghi chú ngoại lai. |
+| C3 | "Quán cơm tấm ngon nhất vũ trụ" | Trả về gợi ý từ DB hoặc thông báo không tìm thấy. | Không được trả về ID lung tung. |
+
+### Nhóm D: Kiểm thử Cá nhân hóa & Hoạt động (Personalization)
+**Mục tiêu:** AI sử dụng lịch sử `FAVORITE` và `VIEW` của người dùng để đưa ra lời khuyên.
+
+| ID | Câu hỏi (Message) | Kết quả mong đợi | Ghi chú |
+|:---|:---|:---|:---|
+| D1 | "Gợi ý quán hợp gu với tôi" | AI nhắc đến sở thích của người dùng (ví dụ: "Vì bạn thích đồ Nhật..."). | Backend truyền `user_context` vào Prompt. |
+| D2 | "Tìm quán cà phê giống quán tôi vừa xem" | AI gợi ý quán có concept tương đương quán cuối cùng người dùng `VIEW`. | Sử dụng Activity Log. |
+
+---
+
+## 3. Cách thực hiện Test nhanh (cURL)
+
+### Test Trích xuất & Lọc Quận
 ```bash
-curl -X POST http://localhost:8000/ai/chatbox \
+curl -X POST http://localhost:8000/api/v1/ai/chatbox \
      -H "Content-Type: application/json" \
-     -d '{"message": "Tìm quán bún bò"}'
+     -H "Authorization: Bearer <YOUR_TOKEN>" \
+     -d '{"message": "Tìm quán lẩu mắm ở Quận 4"}'
 ```
 
-### Test Bún Bò Huế (The Fix)
+### Test Chặn địa điểm ngoài TP.HCM
 ```bash
-curl -X POST http://localhost:8000/ai/chatbox \
+curl -X POST http://localhost:8000/api/v1/ai/chatbox \
      -H "Content-Type: application/json" \
-     -d '{"message": "Tìm cho tôi quán bún bò huế"}'
-```
-
-### Test Unsupported City
-```bash
-curl -X POST http://localhost:8000/ai/chatbox \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Quán phở ở Hà Nội"}'
+     -d '{"message": "Quán bánh đa cua ở Hải Phòng"}'
 ```
 
 ---
 
-## Observation Points
-1. **Response Time:** AI responses take 2-4 seconds; Fallback responses are nearly instant (<200ms).
-2. **Reasoning Quality:** Look for mentions of "vị thanh," "nhiệt tình," or "đậm đà" in the AI's reason—these are extracted from actual user reviews.
-3. **Data Integrity:** Verify that every `restaurant_id` returned matches a real ID in your database.
+## 4. Tiêu chí Đạt (Success Criteria)
+1. **Đúng ID:** Nếu quán có trong DB, `restaurant_id` phải khớp chính xác.
+2. **Đúng Quận:** Nếu người dùng hỏi Quận X, không được gợi ý quán Quận Y.
+3. **Đúng Tone:** Lý do (reason) phải trích xuất từ đánh giá thật trong DB để tăng tính thuyết phục.
+4. **Resilience:** Nếu AI API lỗi, hệ thống phải tự động trả về 3 gợi ý từ DB Fallback.

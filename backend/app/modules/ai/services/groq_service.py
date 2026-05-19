@@ -135,31 +135,31 @@ class GroqService:
             amenity_ids=[]
         )
 
-        # Fallback nếu search_query quá hẹp
-        if not candidate_places and extracted_query:
-            _, candidate_places = search_places(
-                db=db,
-                query=extracted_query,
-                location=None,
-                radius_km=None,
-                concept_ids=[],
-                purpose_ids=[],
-                amenity_ids=[]
-            )
+        # BROADENING FALLBACK: Nếu candidate quá ít (< 5 quán), thử mở rộng search
+        if len(candidate_places) < 5:
+            broad_queries = []
+            if extracted_query and extracted_query != search_query:
+                broad_queries.append(extracted_query)
+            
+            if extracted_query and "huế" in extracted_query.lower():
+                broad_queries.append(extracted_query.lower().replace("huế", "").strip())
+            
+            seen_ids = {p.get('id') if isinstance(p, dict) else p.id for p in candidate_places}
+            for bq in broad_queries:
+                if len(candidate_places) >= 10: break
+                _, extra = search_places(db=db, query=bq, location=None, radius_km=None, concept_ids=[], purpose_ids=[], amenity_ids=[])
+                for p in extra:
+                    pid = p.get('id') if isinstance(p, dict) else p.id
+                    if pid not in seen_ids:
+                        candidate_places.append(p)
+                        seen_ids.add(pid)
         
         # Lọc chỉ những quán ở TP.HCM và lấy thông tin chi tiết để làm ngữ cảnh
         hcm_places_details = []
-        for p in candidate_places[:10]:
+        for p in candidate_places[:20]:
             place_id = p.get('id') if isinstance(p, dict) else p.id
             place = db.query(Place).filter(Place.id == place_id).first()
             if place and self._is_hcm_location(place.ward, place.address):
-                # Nếu có yêu cầu địa điểm cụ thể, ưu tiên lọc chặt chẽ hơn
-                if extracted_location and extracted_location.lower() not in (place.address or "").lower():
-                    # Thử kiểm tra thêm qua ward/district name nếu cần, 
-                    # nhưng đơn giản nhất là check substring trong address/description
-                    if extracted_location.lower() not in (place.description or "").lower():
-                        continue
-
                 cuisine = ", ".join([c.name for c in place.concepts] + [d.name for d in place.dishes])
                 hcm_places_details.append({
                     "id": place.id,
@@ -174,7 +174,7 @@ class GroqService:
             for p in hcm_places_details
         ])
 
-        # Step 3: Lấy các đánh giá liên quan (dùng extracted_query để tránh nhiễu)
+        # Step 3: Lấy các đánh giá liên quan
         reviews = get_relevant_reviews(db, extracted_query or request.message, limit=10)
         reviews_context = "\n".join(reviews) if reviews else "Không có đánh giá đặc thù."
 
@@ -191,7 +191,6 @@ class GroqService:
             extracted_intent=intent
         )
 
-        # Defensive normalize: phòng trường hợp client trả về dict chứa recommendations.
         if isinstance(ai_recommendations, dict):
             if isinstance(ai_recommendations.get("recommendations"), list):
                 ai_recommendations = ai_recommendations["recommendations"]
@@ -203,7 +202,6 @@ class GroqService:
 
         # Xử lý response từ AI
         for rec in ai_recommendations:
-            # Case: AI trả về message thông báo (không đủ dữ liệu hoặc ngoài TPHCM)
             if "message" in rec and "recommendations" in rec:
                 notification_message = rec["message"]
                 continue
@@ -213,7 +211,6 @@ class GroqService:
             lat = rec.get("latitude")
             lng = rec.get("longitude")
 
-            # Case 1: Quán có trong DB (restaurant_id > 0)
             if res_id and res_id > 0:
                 place = db.query(Place).filter(Place.id == res_id).first()
                 if place and self._is_hcm_location(place.ward, place.address):
@@ -228,7 +225,6 @@ class GroqService:
                         )
                     )
                 else:
-                    # Nếu ID sai lệch, thử tìm lại theo tên
                     matched_place = self._find_hcm_place_by_name(db, hcm_places_details, rec.get("name"))
                     if matched_place:
                         recommendations.append(
@@ -242,7 +238,6 @@ class GroqService:
                             )
                         )
                     elif lat and lng:
-                        # Fallback: AI hallucinated an ID but provided coordinates
                         recommendations.append(
                             RestaurantRecommendation(
                                 name=rec.get("name", "Quán ăn tại TP.HCM"),
@@ -253,9 +248,7 @@ class GroqService:
                                 longitude=lng
                             )
                         )
-            # Case 2: Quán AI tự gợi ý (ngoại lai) hoặc không tìm thấy ID
             elif res_id == 0 or (not res_id and rec.get("name")):
-                # Thử tìm trong DB một lần nữa theo tên để chắc chắn không bị trùng
                 matched_place = self._find_hcm_place_by_name(db, hcm_places_details, rec.get("name"))
                 if matched_place:
                     recommendations.append(
@@ -269,7 +262,6 @@ class GroqService:
                         )
                     )
                 elif lat and lng:
-                    # Quán thực sự không có trong DB nhưng có tọa độ từ AI
                     recommendations.append(
                         RestaurantRecommendation(
                             name=rec.get("name", "Quán ăn tại TP.HCM"),
@@ -281,26 +273,29 @@ class GroqService:
                         )
                     )
 
-        # Fallback từ DB nếu AI không trả về kết quả hợp lệ
-        if not recommendations and hcm_places_details:
-            for p in hcm_places_details[:3]:
-                place = db.query(Place).filter(Place.id == p['id']).first()
-                if place:
-                    recommendations.append(
-                        RestaurantRecommendation(
-                            name=place.name,
-                            address=place.address or "Địa chỉ đang cập nhật",
-                            reason="Gợi ý dựa trên dữ liệu có sẵn trong hệ thống.",
-                            restaurant_id=place.id,
-                            latitude=place.latitude,
-                            longitude=place.longitude
+        # BỔ SUNG: Nếu AI trả về ít hơn 3 quán, hãy bổ sung cho đủ 3 từ danh sách context
+        if len(recommendations) < 3 and hcm_places_details:
+            seen_ids = {r.restaurant_id for r in recommendations if r.restaurant_id > 0}
+            for p in hcm_places_details:
+                if len(recommendations) >= 3: break
+                if p['id'] not in seen_ids:
+                    place = db.query(Place).filter(Place.id == p['id']).first()
+                    if place:
+                        recommendations.append(
+                            RestaurantRecommendation(
+                                name=place.name,
+                                address=place.address or "Địa chỉ đang cập nhật",
+                                reason="Gợi ý bổ sung từ hệ thống dựa trên yêu cầu của bạn.",
+                                restaurant_id=place.id,
+                                latitude=place.latitude,
+                                longitude=place.longitude
+                            )
                         )
-                    )
+                        seen_ids.add(place.id)
 
             if recommendations:
                 notification_message = None
 
-        # Nếu vẫn không có recommendations thực, trả về thông báo
         if not recommendations and not notification_message:
             notification_message = "Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này"
 

@@ -9,47 +9,36 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.db.session import SessionLocal
 from app.db.models import Place
+from app.services.search_service import search_places
 
 client = TestClient(app)
 
 def test_ai_chatbox():
     print("Testing AI Chatbox endpoint...")
     
-    # First, check if we have any data in the DB
-    try:
-        with SessionLocal() as db:
-            count = db.query(Place).count()
-            print(f"Total places in DB: {count}")
-            if count == 0:
-                print("WARNING: No places in DB. AI might not return good results.")
-    except Exception as e:
-        print(f"Error connecting to DB: {e}")
+    with SessionLocal() as db:
+        # Check Bún Bò Huế count
+        total, results = search_places(
+            db=db, 
+            query="bún bò huế",
+            location=None,
+            radius_km=None,
+            concept_ids=[],
+            purpose_ids=[],
+            amenity_ids=[]
+        )
+        print(f"Total 'bún bò huế' search results in DB: {total}")
     
     payload = {
-        "message": "Tìm cho tôi quán bún bò huế ở TP.HCM có phục vụ nhiệt tình"
+        "message": "Thèm bún bò huế quá"
     }
     
-    print(f"Sending request: {payload}")
-    try:
-        response = client.post("/ai/chatbox", json=payload)
-        
-        print(f"Status Code: {response.status_code}")
-        if response.status_code == 200:
-            data = response.json()
-            print("Response data:")
-            print(json.dumps(data, indent=2, ensure_ascii=False))
-            
-            if data.get("recommendations"):
-                print(f"\nSUCCESS: AI returned {len(data['recommendations'])} recommendations.")
-                for rec in data["recommendations"]:
-                    print(f"- {rec['name']}: {rec['reason']}")
-            else:
-                print(f"\nNOTICE: AI returned no recommendations. Message: {data.get('message')}")
-        else:
-            print(f"FAILED: Request failed with status {response.status_code}")
-            print(response.text)
-    except Exception as e:
-        print(f"Error calling endpoint: {e}")
+    response = client.post("/ai/chatbox", json=payload)
+    if response.status_code == 200:
+        data = response.json()
+        print(f"Returned {len(data['recommendations'])} recommendations.")
+    else:
+        print(f"Error: {response.status_code}")
 
 if __name__ == "__main__":
     test_ai_chatbox()

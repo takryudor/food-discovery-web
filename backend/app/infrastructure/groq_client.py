@@ -84,15 +84,15 @@ class GroqClient:
             "🌍 PHẠM VI HOẠT ĐỘNG: Web hiện chỉ hỗ trợ khu vực TP.HCM.\n\n"
             f"NGỮ CẢNH TỪ CƠ SỞ DỮ LIỆU:\n{context}\n{user_info}{intent_info}"
             "\n📋 HƯỚNG DẪN NGHIÊM NGẶT:\n"
-            "1. Ưu tiên đề xuất nhà hàng từ 'DANH SÁCH NHÀ HÀNG HIỆN CÓ' nếu chúng thực sự phù hợp với yêu cầu (món ăn, không gian, phong cách VÀ ĐỊA ĐIỂM).\n"
-            "2. TUYỆT ĐỐI KHÔNG gượng ép đề xuất từ danh sách nếu chúng không liên quan đến yêu cầu cốt lõi. "
-            "Nếu người dùng tìm kiếm ở một Quận cụ thể nhưng danh sách chỉ có quán ở Quận khác, hãy coi đó là KHÔNG PHÙ HỢP.\n"
-            "3. Nếu danh sách hiện có không phù hợp, hãy đề xuất tối đa 2 quán nổi tiếng mà bạn biết tại TP.HCM phù hợp với yêu cầu. "
-            "Với các quán này, BẮT BUỘC đặt 'restaurant_id': 0 và cung cấp tọa độ 'latitude', 'longitude' chính xác.\n"
-            "4. Nếu người dùng hỏi về khu vực ngoài TP.HCM, hãy trả về JSON: {\"message\": \"Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này\", \"recommendations\": []}\n"
-            "5. Trả lời CHỈ bằng JSON với khóa: 'restaurant_id', 'name', 'address', 'reason', 'latitude', 'longitude'. Hoặc 'message' + 'recommendations' nếu hoàn toàn không có kết quả.\n"
+            "1. BẮT BUỘC ĐỀ XUẤT ĐÚNG 3 NHÀ HÀNG PHÙ HỢP. Không được trả về ít hơn 3 quán trừ khi người dùng hỏi về khu vực ngoài TP.HCM.\n"
+            "2. Ưu tiên đề xuất nhà hàng từ 'DANH SÁCH NHÀ HÀNG HIỆN CÓ' nếu chúng thực sự phù hợp với yêu cầu (món ăn, không gian, phong cách VÀ ĐỊA ĐIỂM).\n"
+            "3. TUYỆT ĐỐI KHÔNG gượng ép đề xuất từ danh sách nếu chúng không liên quan đến yêu cầu cốt lõi.\n"
+            "4. QUAN TRỌNG: Nếu danh sách hiện có không đủ 3 quán phù hợp, bạn PHẢI tự sử dụng kiến thức của mình để đề xuất thêm các quán nổi tiếng khác tại TP.HCM phù hợp với yêu cầu để ĐẢM BẢO LUÔN CÓ ĐỦ 3 KẾT QUẢ. "
+            "Với các quán do bạn tự đề xuất (không có trong danh sách), BẮT BUỘC đặt 'restaurant_id': 0 và cung cấp tọa độ 'latitude', 'longitude' chính xác.\n"
+            "5. Nếu người dùng hỏi về khu vực ngoài TP.HCM, hãy trả về JSON: {\"message\": \"Data hiện tại của chúng tôi chưa hỗ trợ cho khu vực này\", \"recommendations\": []}\n"
+            "6. Trả lời CHỈ bằng JSON với khóa: 'restaurant_id', 'name', 'address', 'reason', 'latitude', 'longitude'. Hoặc 'message' + 'recommendations' nếu hoàn toàn không có kết quả.\n"
             "Lưu ý: Mọi quán KHÔNG nằm trong 'DANH SÁCH NHÀ HÀNG HIỆN CÓ' đều phải có 'restaurant_id': 0.\n"
-            "6. KHÔNG được thêm markdown, không thêm ```json, không thêm giải thích trước/sau JSON."
+            "7. KHÔNG được thêm markdown, không thêm ```json, không thêm giải thích trước/sau JSON."
         )
 
         chat_completion = self.client.chat.completions.create(
