@@ -2,7 +2,8 @@ from fastapi import APIRouter
 
 from .core.config import get_settings
 from .routes import geo, ai, filters, search, restaurants, users
-
+from .routes import contribution
+from .routes import activity
 
 settings = get_settings()
 router = APIRouter(prefix=settings.api_v1_prefix)
@@ -41,6 +42,12 @@ router.include_router(restaurants.router)
 
 # Users
 router.include_router(users.router)
+
+# User Activities (Crowdsourcing)
+router.include_router(activity.router)
+
+# Contributions
+router.include_router(contribution.router)
 
 # Alias: POST /map-markers -> POST /geo/map-markers
 # Để tương thích với spec MVP mà vẫn giữ endpoint gốc /geo/map-markers
