@@ -7,12 +7,14 @@ import { User, Heart, Settings, LogOut } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useLanguage } from '@/components/providers/LanguageContext';
 import AccountSettingsModal from './AccountSettingsModal';
+import SavedPlacesModal from '@/components/favorites/SavedPlacesModal';
 
 export default function UserMenu() {
   const { user, logout } = useAuth();
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSavedPlaces, setShowSavedPlaces] = useState(false);
 
   if (!user) return null;
 
@@ -75,7 +77,10 @@ export default function UserMenu() {
               {/* Menu items */}
               <div className="p-2">
                 <motion.button
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => {
+                    setIsOpen(false);
+                    setShowSavedPlaces(true);
+                  }}
                   whileHover={{ backgroundColor: 'rgba(0,0,0,0.05)' }}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors"
                 >
@@ -131,6 +136,11 @@ export default function UserMenu() {
       <AccountSettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      <SavedPlacesModal
+        isOpen={showSavedPlaces}
+        onClose={() => setShowSavedPlaces(false)}
       />
     </div>
   );
