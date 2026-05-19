@@ -185,7 +185,7 @@ class UserActivity(Base):
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 	user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-	place_id: Mapped[int] = mapped_column(ForeignKey("places.id", ondelete="CASCADE"), index=True)
+	place_id: Mapped[int | None] = mapped_column(ForeignKey("places.id", ondelete="CASCADE"), index=True, nullable=True)
 	
 	action_type: Mapped[str] = mapped_column(String(50)) # VIEW, FAVORITE, SEARCH
 	timestamp: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
