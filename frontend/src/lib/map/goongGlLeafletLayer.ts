@@ -1,4 +1,5 @@
 import L from "leaflet";
+import "@goongmaps/goong-js/dist/goong-js.css";
 import goongjs from "@goongmaps/goong-js";
 
 const GOONG_DEFAULT_STYLE =

@@ -19,7 +19,7 @@ interface HomePageProps {
 
 export default function HomePage({ onStartJourney, onGoToExplore, theme, onThemeChange }: HomePageProps) {
   const { t } = useLanguage();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const topRestaurantsScrollRef = useRef<HTMLDivElement>(null);
@@ -157,7 +157,7 @@ export default function HomePage({ onStartJourney, onGoToExplore, theme, onTheme
         transition={{ delay: 0.3 }}
         className="absolute top-10 right-10 z-50 flex items-center gap-4"
       >
-        {isAuthenticated ? (
+        {isAuthLoading ? null : isAuthenticated ? (
           <>
             <UserMenu />
             <SettingsDropdown theme={theme} onThemeChange={onThemeChange} />

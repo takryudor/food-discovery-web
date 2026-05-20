@@ -113,6 +113,12 @@ export interface GeoJSONFeatureCollection {
 
 // Types for Restaurant Detail API
 
+export interface ToggleFavoriteResponse {
+  status: string;
+  action: "FAVORITE" | "UNFAVORITE";
+  favorites: number[];
+}
+
 export interface RestaurantDetail {
   id: number;
   name: string;
