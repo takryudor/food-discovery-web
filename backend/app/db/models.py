@@ -10,6 +10,19 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 
+#thêm enum cho action_type của UserActivity
+import enum
+from sqlalchemy import Enum as SAEnum
+
+class UserRole(str, enum.Enum):
+    user = "user"
+    admin = "admin"
+
+class ActivityType(str, enum.Enum):
+    VIEW = "VIEW"
+    SEARCH = "SEARCH"
+    SHARE = "SHARE"
+    ROUTE_REQUEST = "ROUTE_REQUEST"
 
 # Bảng phụ many-to-many.
 # 1 địa điểm (place) có thể có nhiều concept/purpose/amenity và 1 tag cũng có thể thuộc nhiều place.
@@ -85,7 +98,7 @@ class Ward(Base):
 	district: Mapped[District] = relationship(back_populates="wards")
 	places: Mapped[list[Place]] = relationship(back_populates="ward")
 
-
+#cập nhật user
 class User(Base):
 	__tablename__ = "users"
 
@@ -95,13 +108,16 @@ class User(Base):
 	display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 	avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 	
-	# Sở thích người dùng (Tag IDs, Budget profile...)
+	# Thêm cột role phân quyền và updated_at
+	role: Mapped[UserRole] = mapped_column(SAEnum(UserRole, name="user_role"), server_default="user", index=True)
 	preferences: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 	
 	created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+	updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 	reviews: Mapped[list[Review]] = relationship(back_populates="user", cascade="all, delete-orphan")
 	activities: Mapped[list[UserActivity]] = relationship(back_populates="user", cascade="all, delete-orphan")
+	contributions: Mapped[list[RestaurantContribution]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Place(Base):
@@ -185,14 +201,39 @@ class UserActivity(Base):
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 	user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-	place_id: Mapped[int | None] = mapped_column(ForeignKey("places.id", ondelete="CASCADE"), index=True, nullable=True)
+	place_id: Mapped[int] = mapped_column(ForeignKey("places.id", ondelete="CASCADE"), index=True)
 	
-	action_type: Mapped[str] = mapped_column(String(50)) # VIEW, FAVORITE, SEARCH
+	# Đổi sang kiểu Enum chặt chẽ và bổ sung cột metadata_info để lưu ngữ cảnh
+	action_type: Mapped[ActivityType] = mapped_column(SAEnum(ActivityType, name="activity_type"), index=True)
+	activity_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+	
 	timestamp: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 	user: Mapped[User] = relationship(back_populates="activities")
 	place: Mapped[Place] = relationship(back_populates="activities")
 
+
+class RestaurantContribution(Base):
+	__tablename__ = "restaurant_contributions"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+	user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+	
+	name: Mapped[str] = mapped_column(String(255), index=True)
+	description: Mapped[str | None] = mapped_column(Text, nullable=True)
+	address: Mapped[str | None] = mapped_column(String(512), nullable=True)
+	latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+	longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+	phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+	open_hours: Mapped[str | None] = mapped_column(String(100), nullable=True)
+	price_range: Mapped[str | None] = mapped_column(String(100), nullable=True)
+	
+	status: Mapped[str] = mapped_column(String(50), server_default="PENDING", index=True)
+	
+	created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+	updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+	user: Mapped[User] = relationship(back_populates="contributions")
 
 class Concept(Base):
 	__tablename__ = "concepts"
