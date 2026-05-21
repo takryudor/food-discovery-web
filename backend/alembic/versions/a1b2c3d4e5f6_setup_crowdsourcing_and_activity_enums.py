@@ -1,0 +1,194 @@
+"""setup_crowdsourcing_and_activity_enums
+
+Revision ID: a1b2c3d4e5f6
+Revises: 945d8f675bd4
+Create Date: 2026-05-19 11:00:00.000000
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers, used by Alembic.
+revision: str = "a1b2c3d4e5f6"
+down_revision: Union[str, Sequence[str], None] = "945d8f675bd4"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    op.execute("CREATE TYPE user_role AS ENUM ('user', 'admin');")
+    op.execute("CREATE TYPE activity_type AS ENUM ('VIEW', 'SEARCH', 'SHARE', 'ROUTE_REQUEST');")
+    op.create_table(
+        "restaurant_contributions",
+        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("address", sa.String(length=512), nullable=True),
+        sa.Column("latitude", sa.Float(), nullable=True),
+        sa.Column("longitude", sa.Float(), nullable=True),
+        sa.Column("phone", sa.String(length=50), nullable=True),
+        sa.Column("open_hours", sa.String(length=100), nullable=True),
+        sa.Column("price_range", sa.String(length=100), nullable=True),
+        sa.Column("status", sa.String(length=50), server_default="PENDING", nullable=False),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_restaurant_contributions_name"), "restaurant_contributions", ["name"], unique=False)
+    op.create_index(op.f("ix_restaurant_contributions_status"), "restaurant_contributions", ["status"], unique=False)
+    op.create_index(op.f("ix_restaurant_contributions_user_id"), "restaurant_contributions", ["user_id"], unique=False)
+    op.drop_index(
+        op.f("ix_dishes_name_unaccent_trgm"),
+        table_name="dishes",
+        postgresql_ops={"name_unaccent": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.drop_index(op.f("ix_place_amenities_amenity_id_place_id"), table_name="place_amenities")
+    op.drop_index(op.f("ix_place_budget_ranges_budget_range_id_place_id"), table_name="place_budget_ranges")
+    op.drop_index(op.f("ix_place_concepts_concept_id_place_id"), table_name="place_concepts")
+    op.drop_index(op.f("ix_place_purposes_purpose_id_place_id"), table_name="place_purposes")
+    op.drop_index(
+        op.f("ix_places_address_unaccent_trgm"),
+        table_name="places",
+        postgresql_ops={"address_unaccent": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.drop_index(
+        op.f("ix_places_description_trgm"),
+        table_name="places",
+        postgresql_ops={"description": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.drop_index(op.f("ix_places_lat_lng"), table_name="places")
+    op.drop_index(op.f("ix_places_latitude"), table_name="places")
+    op.drop_index(op.f("ix_places_longitude"), table_name="places")
+    op.drop_index(
+        op.f("ix_places_name_trgm"),
+        table_name="places",
+        postgresql_ops={"name": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.drop_index(
+        op.f("ix_places_name_unaccent_trgm"),
+        table_name="places",
+        postgresql_ops={"name_unaccent": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.drop_index(op.f("ix_places_search_tsv_gin"), table_name="places", postgresql_using="gin")
+    op.add_column(
+        "user_activities",
+        sa.Column("activity_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    )
+    op.alter_column("user_activities", "place_id", existing_type=sa.INTEGER(), nullable=False)
+    op.alter_column(
+        "user_activities",
+        "action_type",
+        existing_type=sa.VARCHAR(length=50),
+        type_=sa.Enum("VIEW", "SEARCH", "SHARE", "ROUTE_REQUEST", name="activity_type"),
+        existing_nullable=False,
+        postgresql_using="action_type::activity_type",
+    )
+    op.create_index(op.f("ix_user_activities_action_type"), "user_activities", ["action_type"], unique=False)
+    op.add_column(
+        "users",
+        sa.Column("role", sa.Enum("user", "admin", name="user_role"), server_default="user", nullable=False),
+    )
+    op.add_column("users", sa.Column("updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False))
+    op.create_index(op.f("ix_users_role"), "users", ["role"], unique=False)
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    op.execute("DROP TYPE activity_type;")
+    op.execute("DROP TYPE user_role;")
+    op.drop_index(op.f("ix_users_role"), table_name="users")
+    op.drop_column("users", "updated_at")
+    op.drop_column("users", "role")
+    op.drop_index(op.f("ix_user_activities_action_type"), table_name="user_activities")
+    op.alter_column(
+        "user_activities",
+        "action_type",
+        existing_type=sa.Enum("VIEW", "SEARCH", "SHARE", "ROUTE_REQUEST", name="activity_type"),
+        type_=sa.VARCHAR(length=50),
+        existing_nullable=False,
+    )
+    op.alter_column("user_activities", "place_id", existing_type=sa.INTEGER(), nullable=True)
+    op.drop_column("user_activities", "activity_metadata")
+    op.create_index(op.f("ix_places_search_tsv_gin"), "places", ["search_tsv"], unique=False, postgresql_using="gin")
+    op.create_index(
+        op.f("ix_places_name_unaccent_trgm"),
+        "places",
+        ["name_unaccent"],
+        unique=False,
+        postgresql_ops={"name_unaccent": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.create_index(
+        op.f("ix_places_name_trgm"),
+        "places",
+        ["name"],
+        unique=False,
+        postgresql_ops={"name": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.create_index(op.f("ix_places_longitude"), "places", ["longitude"], unique=False)
+    op.create_index(op.f("ix_places_latitude"), "places", ["latitude"], unique=False)
+    op.create_index(op.f("ix_places_lat_lng"), "places", ["latitude", "longitude"], unique=False)
+    op.create_index(
+        op.f("ix_places_description_trgm"),
+        "places",
+        ["description"],
+        unique=False,
+        postgresql_ops={"description": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.create_index(
+        op.f("ix_places_address_unaccent_trgm"),
+        "places",
+        ["address_unaccent"],
+        unique=False,
+        postgresql_ops={"address_unaccent": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.create_index(
+        op.f("ix_place_purposes_purpose_id_place_id"),
+        "place_purposes",
+        ["purpose_id", "place_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_place_concepts_concept_id_place_id"),
+        "place_concepts",
+        ["concept_id", "place_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_place_budget_ranges_budget_range_id_place_id"),
+        "place_budget_ranges",
+        ["budget_range_id", "place_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_place_amenities_amenity_id_place_id"),
+        "place_amenities",
+        ["amenity_id", "place_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_dishes_name_unaccent_trgm"),
+        "dishes",
+        ["name_unaccent"],
+        unique=False,
+        postgresql_ops={"name_unaccent": "gin_trgm_ops"},
+        postgresql_using="gin",
+    )
+    op.drop_index(op.f("ix_restaurant_contributions_user_id"), table_name="restaurant_contributions")
+    op.drop_index(op.f("ix_restaurant_contributions_status"), table_name="restaurant_contributions")
+    op.drop_index(op.f("ix_restaurant_contributions_name"), table_name="restaurant_contributions")
+    op.drop_table("restaurant_contributions")
