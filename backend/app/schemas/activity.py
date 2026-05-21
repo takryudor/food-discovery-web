@@ -8,11 +8,14 @@ class ActivityCreate(BaseModel):
     place_id: Optional[int] = None
     activity_metadata: Optional[Dict[str, Any]] = None  # Lưu keyword search, filter...
 
-# Lưới lọc đầu ra để kiểm tra
-class ActivityResponse(ActivityCreate):
+# Response schema — tách riêng để map đúng field `timestamp` trong DB model UserActivity
+class ActivityResponse(BaseModel):
     id: int
     user_id: int
-    created_at: datetime
+    action_type: str
+    place_id: Optional[int] = None
+    activity_metadata: Optional[Dict[str, Any]] = None
+    timestamp: datetime  # Tên field thật trong bảng user_activities (không phải created_at)
 
     class Config:
-        from_attributes = True
+        from_attributes = True
