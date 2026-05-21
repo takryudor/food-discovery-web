@@ -8,10 +8,15 @@ services:
     volumes:
       - ./frontend:/workspace/frontend
       - frontend_node_modules:/workspace/frontend/node_modules
+    env_file:
+      - .env
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_GOONG_MAPTILES_KEY: ${NEXT_PUBLIC_GOONG_MAPTILES_KEY:-}
+      NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-}
+      NEXT_PUBLIC_GOONG_STYLE_URL: ${NEXT_PUBLIC_GOONG_STYLE_URL:-}
       NODE_OPTIONS: "--max-old-space-size=4096"
     deploy:
       resources:
