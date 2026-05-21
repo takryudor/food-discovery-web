@@ -12,14 +12,18 @@ import {
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { setAuthTokenResolver } from "@/lib/api/client";
+import { getCurrentUser } from "@/lib/api/users";
 import { changeUserPassword, updateUserProfile, uploadAvatar } from "@/lib/auth/profile";
 import { supabase } from "@/lib/supabase";
+import type { UserRole } from "@/lib/types";
 
 export interface User {
   id: string;
   name: string;
   email: string;
   avatar?: string;
+  role?: UserRole;
+  backendUserId?: number;
 }
 
 interface AuthContextType {
@@ -70,8 +74,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const applySession = (session: { access_token: string; user: SupabaseUser } | null) => {
       accessTokenRef.current = session?.access_token ?? null;
-      setUser(session?.user ? mapSupabaseUser(session.user) : null);
+      const mappedUser = session?.user ? mapSupabaseUser(session.user) : null;
+      setUser(mappedUser);
       setIsLoading(false);
+
+      if (session?.access_token && mappedUser) {
+        void getCurrentUser()
+          .then((profile) => {
+            setUser((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    role: profile.role,
+                    backendUserId: profile.id,
+                    name: profile.display_name || prev.name,
+                  }
+                : prev,
+            );
+          })
+          .catch(() => {
+            // Backend profile optional until user exists in DB
+          });
+      }
     };
 
     void supabase.auth.getSession().then(({ data, error }) => {
