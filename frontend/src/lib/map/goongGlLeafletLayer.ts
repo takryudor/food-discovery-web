@@ -68,6 +68,39 @@ function attachGoongStyleErrorRecovery(gl: GoongMapInstance): void {
   });
 }
 
+function attachGoongBasemapFailureHandler(
+  gl: GoongMapInstance,
+  onBasemapError?: () => void,
+): void {
+  if (!onBasemapError) return;
+
+  let reported = false;
+  const report = () => {
+    if (reported) return;
+    reported = true;
+    onBasemapError();
+  };
+
+  gl.on("error", (event: { error?: Error }) => {
+    const message = event.error?.message ?? "";
+    if (/style layer "/.test(message)) {
+      return;
+    }
+    if (GOONG_FATAL_ERROR_PATTERN.test(message)) {
+      report();
+    }
+  });
+
+  window.setTimeout(() => {
+    if (reported) return;
+    const styleLoaded =
+      typeof gl.isStyleLoaded === "function" ? gl.isStyleLoaded() : gl.loaded();
+    if (!styleLoaded) {
+      report();
+    }
+  }, 12_000);
+}
+
 type GoongMapInstance = InstanceType<typeof goongjs.Map>;
 
 /** Leaflet marks `_map` protected; the runtime layer from `L.Layer.extend` always has it. */
@@ -91,8 +124,13 @@ function requestGoongRedraw(gl: GoongMapInstance): void {
   }
 }
 
+const GOONG_FATAL_ERROR_PATTERN =
+  /unauthorized|forbidden|invalid.*token|fail|could not|unable to/i;
+
 export type GoongGlLayerOptions = L.LayerOptions & {
   apiKey: string;
+  /** Called when the basemap cannot load (triggers Carto fallback in MapComponent). */
+  onBasemapError?: () => void;
   /** Goong style URL; query `api_key` is appended automatically. */
   styleUrl?: string;
   /** Relative padding around the map view (fraction of map size per side). */
@@ -266,6 +304,10 @@ const GoongGl = L.Layer.extend({
     if (!self._glMap) {
       self._glMap = new goongjs.Map(mapOptions);
       attachGoongStyleErrorRecovery(self._glMap);
+      attachGoongBasemapFailureHandler(
+        self._glMap,
+        self.options.onBasemapError,
+      );
     } else {
       self._glMap.setStyle(style);
       self._glMap.setCenter(mapOptions.center);
