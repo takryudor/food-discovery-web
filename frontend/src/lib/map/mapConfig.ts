@@ -30,6 +30,16 @@ export function getGoongMaptilesKey(): string | undefined {
   return key || undefined;
 }
 
+const DEFAULT_GOONG_STYLE_URL =
+  "https://tiles.goong.io/assets/goong_map_web.json";
+
+/** Goong vector style JSON URL (optional override). */
+export function getGoongStyleUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_GOONG_STYLE_URL?.trim() || DEFAULT_GOONG_STYLE_URL
+  );
+}
+
 export function shouldUseGoongBasemap(): boolean {
   return getMapProvider() === "goong" && getGoongMaptilesKey() != null;
 }

@@ -1,9 +1,72 @@
 import L from "leaflet";
 import "@goongmaps/goong-js/dist/goong-js.css";
 import goongjs from "@goongmaps/goong-js";
+import { getGoongStyleUrl } from "@/lib/map/mapConfig";
 
-const GOONG_DEFAULT_STYLE =
-  "https://tiles.goong.io/assets/goong_map_web.json";
+/**
+ * Layers in goong_map_web.json that reference vector source-layers no longer
+ * shipped on the composite source (e.g. "trees" / poi-tree).
+ */
+const GOONG_REMOVED_LAYER_IDS = new Set(["poi-tree"]);
+const GOONG_MISSING_SOURCE_LAYERS = new Set(["trees"]);
+
+type GoongStyleSpec = {
+  layers?: Array<{
+    id?: string;
+    "source-layer"?: string;
+  }>;
+};
+
+export function sanitizeGoongStyle<T extends GoongStyleSpec>(style: T): T {
+  if (!Array.isArray(style.layers)) {
+    return style;
+  }
+  const layers = style.layers.filter((layer) => {
+    if (layer.id && GOONG_REMOVED_LAYER_IDS.has(layer.id)) {
+      return false;
+    }
+    const sourceLayer = layer["source-layer"];
+    if (sourceLayer && GOONG_MISSING_SOURCE_LAYERS.has(sourceLayer)) {
+      return false;
+    }
+    return true;
+  });
+  return { ...style, layers };
+}
+
+function appendGoongApiKey(styleUrl: string, apiKey: string): string {
+  const separator = styleUrl.includes("?") ? "&" : "?";
+  return `${styleUrl}${separator}api_key=${encodeURIComponent(apiKey)}`;
+}
+
+async function fetchSanitizedGoongStyle(
+  styleUrl: string,
+  apiKey: string,
+): Promise<object> {
+  const response = await fetch(appendGoongApiKey(styleUrl, apiKey));
+  if (!response.ok) {
+    throw new Error(`Goong style fetch failed (${response.status})`);
+  }
+  const json = (await response.json()) as GoongStyleSpec;
+  return sanitizeGoongStyle(json);
+}
+
+/** Remove style layers that fail when composite tiles omit a source-layer. */
+function attachGoongStyleErrorRecovery(gl: GoongMapInstance): void {
+  gl.on("error", (event: { error?: Error }) => {
+    const message = event.error?.message ?? "";
+    const match = message.match(/style layer "([^"]+)"/);
+    const layerId = match?.[1];
+    if (!layerId || !gl.getLayer(layerId)) {
+      return;
+    }
+    try {
+      gl.removeLayer(layerId);
+    } catch {
+      // Layer may already be gone if style reloads.
+    }
+  });
+}
 
 type GoongMapInstance = InstanceType<typeof goongjs.Map>;
 
@@ -68,7 +131,7 @@ interface GoongLayerThis extends L.Layer {
 const GoongGl = L.Layer.extend({
   options: {
     apiKey: "",
-    styleUrl: GOONG_DEFAULT_STYLE,
+    styleUrl: getGoongStyleUrl(),
     updateInterval: 32,
     padding: 0.1,
     interactive: false,
@@ -76,7 +139,10 @@ const GoongGl = L.Layer.extend({
   },
 
   initialize(options: GoongGlLayerOptions) {
-    L.setOptions(this, options);
+    L.setOptions(this, {
+      styleUrl: options.styleUrl ?? getGoongStyleUrl(),
+      ...options,
+    });
     const self = this as GoongLayerThis;
     self._throttledUpdate = L.Util.throttle(
       self._update,
@@ -92,7 +158,7 @@ const GoongGl = L.Layer.extend({
     }
     const paneName = self.getPaneName();
     map.getPane(paneName).appendChild(self._container);
-    self._initGL();
+    void self._initGL();
     self._offset = map.containerPointToLayerPoint(L.point(0, 0));
 
     if (map.options.zoomAnimation) {
@@ -169,14 +235,25 @@ const GoongGl = L.Layer.extend({
     L.DomUtil.setPosition(container, topLeft);
   },
 
-  _initGL() {
+  async _initGL() {
     const self = this as GoongLayerThis;
-    const m = layerMap(self)!;
+    const m = layerMap(self);
+    if (!m || !self._container.isConnected) return;
+
     const center = m.getCenter();
-    const styleBase = self.options.styleUrl ?? GOONG_DEFAULT_STYLE;
-    const style = `${styleBase}${styleBase.includes("?") ? "&" : "?"}api_key=${encodeURIComponent(self.options.apiKey)}`;
+    const styleBase = self.options.styleUrl ?? getGoongStyleUrl();
 
     goongjs.accessToken = self.options.apiKey;
+
+    let style: string | object = appendGoongApiKey(styleBase, self.options.apiKey);
+    try {
+      style = await fetchSanitizedGoongStyle(styleBase, self.options.apiKey);
+    } catch (err) {
+      console.warn(
+        "Could not sanitize Goong style; using URL (console layer errors may persist):",
+        err,
+      );
+    }
 
     const mapOptions = {
       container: self._container,
@@ -188,7 +265,9 @@ const GoongGl = L.Layer.extend({
 
     if (!self._glMap) {
       self._glMap = new goongjs.Map(mapOptions);
+      attachGoongStyleErrorRecovery(self._glMap);
     } else {
+      self._glMap.setStyle(style);
       self._glMap.setCenter(mapOptions.center);
       self._glMap.setZoom(mapOptions.zoom);
     }
