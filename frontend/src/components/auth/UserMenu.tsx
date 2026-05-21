@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Heart, Settings, LogOut } from 'lucide-react';
+import { User, Heart, Settings, LogOut, LayoutDashboard } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useLanguage } from '@/components/providers/LanguageContext';
 import AccountSettingsModal from './AccountSettingsModal';
@@ -109,6 +109,23 @@ export default function UserMenu() {
                     {t('accountSettings')}
                   </span>
                 </motion.button>
+
+                {user.role === 'admin' && (
+                  <motion.a
+                    href="/admin"
+                    onClick={() => setIsOpen(false)}
+                    whileHover={{ backgroundColor: 'rgba(0,0,0,0.05)' }}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors"
+                  >
+                    <LayoutDashboard className="w-5 h-5 text-red-600" />
+                    <span
+                      className="text-neutral-700 dark:text-neutral-300 font-medium"
+                      style={{ fontFamily: 'Inter, sans-serif' }}
+                    >
+                      {t('adminPanel')}
+                    </span>
+                  </motion.a>
+                )}
 
                 <div className="my-2 h-px bg-neutral-200 dark:bg-neutral-800" />
 

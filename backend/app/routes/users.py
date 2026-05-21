@@ -4,10 +4,18 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.session import get_db
 from app.db.models import User, Place
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_or_create_current_user
+from app.schemas.user import UserMeResponse
 from app.services.activity_service import log_activity
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+@router.get("/me", response_model=UserMeResponse)
+def read_current_user(
+    current_user: User = Depends(get_or_create_current_user),
+):
+    return current_user
 
 @router.post("/favorite/{restaurant_id}")
 def toggle_favorite(
