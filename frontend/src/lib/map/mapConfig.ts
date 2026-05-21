@@ -17,12 +17,15 @@ const DEFAULT_OSM_ATTRIBUTION =
 /**
  * Map provider selection (Phase 1 — clean map / compliance).
  *
- * - Default `osm`: safe baseline for Vietnam (no Goong key required).
- * - `goong`: only when explicitly enabled AND `NEXT_PUBLIC_GOONG_MAPTILES_KEY` is set.
+ * - Default: Goong when `NEXT_PUBLIC_GOONG_MAPTILES_KEY` is set; otherwise Carto Voyager raster.
+ * - `NEXT_PUBLIC_MAP_PROVIDER=osm` forces Carto only (skips Goong even with a key).
+ * - `NEXT_PUBLIC_MAP_PROVIDER=goong` requires a Goong key (same as auto).
  */
 export function getMapProvider(): MapProvider {
-  const raw = (process.env.NEXT_PUBLIC_MAP_PROVIDER ?? "osm").trim().toLowerCase();
-  return raw === "goong" ? "goong" : "osm";
+  const explicit = process.env.NEXT_PUBLIC_MAP_PROVIDER?.trim().toLowerCase();
+  if (explicit === "osm") return "osm";
+  if (explicit === "goong") return "goong";
+  return getGoongMaptilesKey() != null ? "goong" : "osm";
 }
 
 export function getGoongMaptilesKey(): string | undefined {
@@ -40,6 +43,7 @@ export function getGoongStyleUrl(): string {
   );
 }
 
+/** Prefer Goong vector tiles when a key is configured (unless forced to `osm`). */
 export function shouldUseGoongBasemap(): boolean {
   return getMapProvider() === "goong" && getGoongMaptilesKey() != null;
 }

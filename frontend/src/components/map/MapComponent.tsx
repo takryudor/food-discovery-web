@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import Image from "next/image";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { Icon, LatLngTuple } from "leaflet";
@@ -131,8 +138,14 @@ function MapCenterUpdater({
   return null;
 }
 
-/** Goong vector basemap (replaces OSM tiles when Goong mode is enabled). */
-function GoongBaseLayer({ apiKey }: { apiKey: string }) {
+/** Goong vector basemap; falls back to Carto raster via `onFallback`. */
+function GoongBaseLayer({
+  apiKey,
+  onFallback,
+}: {
+  apiKey: string;
+  onFallback: () => void;
+}) {
   const map = useMap();
   useEffect(() => {
     let cancelled = false;
@@ -143,10 +156,16 @@ function GoongBaseLayer({ apiKey }: { apiKey: string }) {
           "@/lib/map/goongGlLeafletLayer"
         );
         if (cancelled) return;
-        layer = createGoongGlLayer({ apiKey });
+        layer = createGoongGlLayer({
+          apiKey,
+          onBasemapError: () => {
+            if (!cancelled) onFallback();
+          },
+        });
         map.addLayer(layer);
       } catch (err) {
         console.error("Failed to load Goong basemap:", err);
+        if (!cancelled) onFallback();
       }
     })();
     return () => {
@@ -155,7 +174,7 @@ function GoongBaseLayer({ apiKey }: { apiKey: string }) {
         map.removeLayer(layer);
       }
     };
-  }, [map, apiKey]);
+  }, [map, apiKey, onFallback]);
   return null;
 }
 
@@ -184,9 +203,19 @@ export default function MapComponent({
     [userLocation.lat, userLocation.lng],
   );
 
-  const useGoong = shouldUseGoongBasemap();
-  const goongMaptilesKey = useGoong ? getGoongMaptilesKey() : undefined;
+  const preferGoong = shouldUseGoongBasemap();
+  const goongMaptilesKey = getGoongMaptilesKey();
+  const [goongFailed, setGoongFailed] = useState(false);
+  const useGoong = preferGoong && goongMaptilesKey != null && !goongFailed;
   const osmTiles = getOsmTileConfig();
+
+  const handleGoongFallback = useCallback(() => {
+    setGoongFailed(true);
+  }, []);
+
+  useEffect(() => {
+    setGoongFailed(false);
+  }, [goongMaptilesKey]);
 
   const handleMarkerClick = async (feature: GeoJSONFeature) => {
     onMarkerClick(feature);
@@ -253,8 +282,11 @@ export default function MapComponent({
         maxBoundsViscosity={1}
         preferCanvas={true}
       >
-        {useGoong && goongMaptilesKey ? (
-          <GoongBaseLayer apiKey={goongMaptilesKey} />
+        {useGoong ? (
+          <GoongBaseLayer
+            apiKey={goongMaptilesKey!}
+            onFallback={handleGoongFallback}
+          />
         ) : (
           <TileLayer
             attribution={osmTiles.attribution}
