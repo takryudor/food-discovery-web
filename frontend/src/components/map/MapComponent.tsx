@@ -428,6 +428,7 @@ export default function MapComponent({
         {selectedRestaurant && (
           <RestaurantDetailPanel
             restaurant={selectedRestaurant}
+            userLocation={userLocation}
             onClose={() => {
               setSelectedRestaurant(null);
               onViewOtherRestaurants();
@@ -447,6 +448,7 @@ export default function MapComponent({
 // Restaurant Detail Panel Component
 interface RestaurantDetailPanelProps {
   restaurant: RestaurantDetail;
+  userLocation: UserLocation;
   onClose: () => void;
   onConfirm: () => void;
   onRequireAuth?: () => void;
@@ -454,6 +456,7 @@ interface RestaurantDetailPanelProps {
 
 function RestaurantDetailPanel({
   restaurant,
+  userLocation,
   onClose,
   onConfirm,
   onRequireAuth,
@@ -494,10 +497,11 @@ function RestaurantDetailPanel({
 
   const handleDirections = useCallback(() => {
     void logRouteRequest(restaurant.id);
+    const origin = `${userLocation.lat},${userLocation.lng}`;
     const { latitude, longitude } = restaurant;
     if (latitude != null && longitude != null) {
       window.open(
-        `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
+        `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${latitude},${longitude}`,
         "_blank",
         "noopener,noreferrer",
       );
@@ -505,12 +509,20 @@ function RestaurantDetailPanel({
     }
     if (restaurant.address) {
       window.open(
-        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(restaurant.address)}`,
+        `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${encodeURIComponent(restaurant.address)}`,
         "_blank",
         "noopener,noreferrer",
       );
     }
-  }, [logRouteRequest, restaurant.address, restaurant.id, restaurant.latitude, restaurant.longitude]);
+  }, [
+    logRouteRequest,
+    restaurant.address,
+    restaurant.id,
+    restaurant.latitude,
+    restaurant.longitude,
+    userLocation.lat,
+    userLocation.lng,
+  ]);
 
   return (
     <>
