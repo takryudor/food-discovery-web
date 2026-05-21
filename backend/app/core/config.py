@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,10 @@ class Settings(BaseSettings):
 	groq_api_key: str = ""
 
 	# Supabase Auth Settings
+	supabase_url: str = Field(
+		default="",
+		validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
+	)
 	supabase_jwt_secret: str = ""
 	supabase_jwt_algorithm: str = "HS256"
 
