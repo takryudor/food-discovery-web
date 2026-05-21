@@ -1,4 +1,4 @@
-import { ApiError, ToggleFavoriteResponse } from "@/lib/types";
+import { ApiError, ToggleFavoriteResponse, UserMeResponse } from "@/lib/types";
 import { apiFetch, isMockDataEnabled } from "@/lib/api/client";
 
 const MOCK_FAVORITES_KEY = "foodyssey_mock_favorites";
@@ -60,4 +60,8 @@ export async function toggleFavorite(
     };
     throw networkError;
   }
+}
+
+export async function getCurrentUser(): Promise<UserMeResponse> {
+  return apiFetch<UserMeResponse>({ path: "/users/me" });
 }

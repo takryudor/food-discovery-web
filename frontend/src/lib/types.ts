@@ -158,3 +158,91 @@ export interface UserLocation {
 }
 
 export type LocationStatus = "loading" | "success" | "denied" | "error";
+
+// Types for User / Admin API
+
+export type UserRole = "user" | "admin";
+
+export interface UserMeResponse {
+  id: number;
+  email: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  role: UserRole;
+  created_at: string;
+}
+
+export interface AdminStatsResponse {
+  pending_contributions: number;
+  total_contributions: number;
+  total_places: number;
+  total_users: number;
+}
+
+export interface AdminContribution {
+  id: number;
+  user_id: number;
+  user_email: string | null;
+  user_display_name: string | null;
+  name: string;
+  description: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  phone: string | null;
+  open_hours: string | null;
+  price_range: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminPlace {
+  id: number;
+  name: string;
+  description: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  rating: number | null;
+  phone: string | null;
+  open_hours: string | null;
+  price_range: string | null;
+  cover_image: string | null;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  role: UserRole;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminPlaceUpdate {
+  name?: string;
+  description?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  rating?: number | null;
+  phone?: string | null;
+  open_hours?: string | null;
+  price_range?: string | null;
+  cover_image?: string | null;
+}
+
+export interface ContributionReviewResponse {
+  contribution_id: number;
+  status: string;
+  place_id: number | null;
+}
