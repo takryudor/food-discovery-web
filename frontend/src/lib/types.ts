@@ -246,3 +246,20 @@ export interface ContributionReviewResponse {
   status: string;
   place_id: number | null;
 }
+
+export type ActivityActionType = 'VIEW' | 'SEARCH' | 'SHARE' | 'ROUTE_REQUEST';
+
+export interface ActivityCreate {
+  action_type: ActivityActionType;
+  place_id?: number;                          // Không bắt buộc (SEARCH không cần place_id)
+  activity_metadata?: Record<string, unknown>; // Dữ liệu đi kèm (từ khóa tìm, filter đã dùng, v.v.)
+}
+
+export interface ActivityResponse {
+  id: number;
+  user_id: number;
+  action_type: ActivityActionType;
+  place_id?: number;
+  activity_metadata?: Record<string, unknown>;
+  created_at: string;
+}
