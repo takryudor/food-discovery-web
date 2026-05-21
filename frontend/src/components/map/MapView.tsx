@@ -29,6 +29,7 @@ import {
 import type { Map as LeafletMap } from "leaflet";
 import { useLanguage } from "@/components/providers/LanguageContext";
 import { useUserLocation } from "@/hooks/useUserLocation";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 import SettingsDropdown from "@/components/common/SettingsDropdown";
 import LoginModal from "@/components/auth/LoginModal";
 import OdysseusAI from "@/components/restaurant/components/OdysseusAI";
@@ -103,6 +104,7 @@ export default function MapView({
   onThemeChange,
 }: MapViewProps) {
   const { t } = useLanguage();
+  const { logSearch } = useActivityLogger();
   const { location: gpsLocation, status: locationStatus } = useUserLocation();
   const [manualLocation, setManualLocation] = useState<UserLocation | null>(
     null,
@@ -575,6 +577,13 @@ export default function MapView({
       setIsMapLocked(false);
       setRestorableMapMarkers(null);
 
+      const activeFilterCount =
+        selectedConcepts.length +
+        selectedPurposes.length +
+        selectedAmenities.length +
+        selectedBudgetRanges.length;
+      void logSearch(queryText, activeFilterCount);
+
       try {
         console.log("[DEBUG] Starting search with params:", {
           query: queryText || undefined,
@@ -730,6 +739,7 @@ export default function MapView({
       setMapMarkers,
       setSearchResults,
       setSelectedMarkerId,
+      logSearch,
       userLocation,
     ],
   );
