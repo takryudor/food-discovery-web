@@ -20,12 +20,15 @@ import {
   Phone,
   Clock,
   X,
+  Share2,
+  Navigation,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { UserLocation, GeoJSONFeature, RestaurantDetail } from "@/lib/types";
 import { getRestaurantDetail } from "@/lib/api/restaurant";
 import FavoriteButton from "@/components/favorites/FavoriteButton";
 import { useLanguage } from "@/components/providers/LanguageContext";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 import {
   getGoongMaptilesKey,
   getOsmTileConfig,
@@ -192,6 +195,7 @@ export default function MapComponent({
   mapLeafletRef,
 }: MapComponentProps) {
   const { t } = useLanguage();
+  const { logView } = useActivityLogger();
   const [selectedRestaurant, setSelectedRestaurant] =
     useState<RestaurantDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -259,6 +263,12 @@ export default function MapComponent({
       setLoadingDetail(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedRestaurant?.id) {
+      void logView(selectedRestaurant.id);
+    }
+  }, [selectedRestaurant?.id, logView]);
 
   useEffect(() => {
     if (selectedMarkerId == null) return;
@@ -449,6 +459,59 @@ function RestaurantDetailPanel({
   onRequireAuth,
 }: RestaurantDetailPanelProps) {
   const { t } = useLanguage();
+  const { logShare, logRouteRequest } = useActivityLogger();
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+
+  const handleShare = useCallback(async () => {
+    void logShare(restaurant.id);
+    const shareUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/map?place=${restaurant.id}`
+        : "";
+    const shareText = `${restaurant.name} — ${restaurant.address}`;
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: restaurant.name,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch {
+        // User cancelled or share failed — fall through to clipboard
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+      setShareFeedback(t("shareCopied"));
+      window.setTimeout(() => setShareFeedback(null), 2000);
+    } catch (err) {
+      console.error("Share failed:", err);
+    }
+  }, [logShare, restaurant.address, restaurant.id, restaurant.name, t]);
+
+  const handleDirections = useCallback(() => {
+    void logRouteRequest(restaurant.id);
+    const { latitude, longitude } = restaurant;
+    if (latitude != null && longitude != null) {
+      window.open(
+        `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+      return;
+    }
+    if (restaurant.address) {
+      window.open(
+        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(restaurant.address)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+  }, [logRouteRequest, restaurant.address, restaurant.id, restaurant.latitude, restaurant.longitude]);
+
   return (
     <>
       {/* Backdrop */}
@@ -623,8 +686,32 @@ function RestaurantDetailPanel({
           </div>
         </div>
 
+        {/* Share & directions */}
+        <div className="px-5 pb-3 flex gap-2">
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => void handleShare()}
+            className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-700 rounded-2xl font-semibold text-sm hover:border-orange-300 hover:text-orange-600 transition-colors"
+          >
+            <Share2 className="w-4 h-4 shrink-0" />
+            {shareFeedback ?? t("shareRestaurant")}
+          </motion.button>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleDirections}
+            className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-700 rounded-2xl font-semibold text-sm hover:border-orange-300 hover:text-orange-600 transition-colors"
+          >
+            <Navigation className="w-4 h-4 shrink-0" />
+            {t("getDirections")}
+          </motion.button>
+        </div>
+
         {/* Action Buttons */}
-        <div className="p-5 border-t border-gray-100 flex gap-3">
+        <div className="p-5 pt-0 border-t border-gray-100 flex gap-3">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
